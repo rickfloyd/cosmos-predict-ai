@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,8 +8,7 @@ import {
   SafeAreaView,
   ScrollView,
   Alert,
-  StatusBar,
-  Modal
+  StatusBar
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OpenAI } from 'openai';
@@ -28,7 +27,6 @@ import { securityConfig } from './src/config/security.config';
  */
 class SecurityValidator {
   // Use configurable limits from security config
-  private static get MAX_INPUT_LENGTH() { return securityConfig.inputLimits.maxInputLength; }
   private static get MAX_USERNAME_LENGTH() { return securityConfig.inputLimits.maxUsernameLength; }
   private static get MAX_EMAIL_LENGTH() { return securityConfig.inputLimits.maxEmailLength; }
   private static get MAX_MESSAGE_LENGTH() { return securityConfig.inputLimits.maxMessageLength; }
@@ -483,21 +481,6 @@ interface SecureUser {
   role: 'user' | 'admin' | 'moderator';
 }
 
-interface AgeVerificationSession {
-  userId: string;
-  method: 'yoti' | 'jumio' | 'onfido' | 'stripe_identity' | 'id_me';
-  status: 'pending' | 'verified' | 'failed' | 'expired';
-  verificationId: string;
-  attemptCount: number;
-  documentType?: 'passport' | 'drivers_license' | 'national_id';
-  extractedAge?: number;
-  confidence: number;
-  timestamp: Date;
-  expiresAt: Date;
-  ipAddress: string;
-  fraudCheck: FraudCheckResult;
-}
-
 interface FraudCheckResult {
   score: number; // 0-100, higher = more suspicious
   flags: string[];
@@ -536,25 +519,6 @@ interface ModerationResult {
     confidence: number;
     decisionReason: string;
   };
-}
-
-interface ComplianceRecord {
-  userId: string;
-  gdprConsent: {
-    marketing: boolean;
-    analytics: boolean;
-    dataProcessing: boolean;
-    timestamp: Date;
-    ipAddress: string;
-  };
-  ccpaOptOut: boolean;
-  coppaCompliant: boolean;
-  ageVerificationRequired: boolean;
-  dataRetentionPeriod: number; // days
-  dataExportRequested: boolean;
-  dataDeletionRequested: boolean;
-  lastPolicyUpdate: Date;
-  policyVersion: string;
 }
 
 // ============================
@@ -603,9 +567,6 @@ interface ThreatIntelligence {
 // ============================
 
 class SecurityService {
-  private static readonly ENCRYPTION_KEY = process.env.MASTER_ENCRYPTION_KEY || 'REPLACE_WITH_HSM_KEY';
-  private static readonly JWT_SECRET = process.env.JWT_SECRET || 'REPLACE_WITH_SECURE_JWT_SECRET';
-  
   // AES-256-GCM Encryption (simulated - use real crypto in production)
   static async encryptData(plaintext: string): Promise<string> {
     // In production: Use Web Crypto API or Node.js crypto module
@@ -616,7 +577,7 @@ class SecurityService {
   static async decryptData(ciphertext: string): Promise<string> {
     // In production: Use proper AES-256-GCM decryption
     const parts = ciphertext.split('_');
-    if (parts[0] === 'encrypted' && parts.length === 3) {
+    if (parts[0] === 'encrypted' && parts.length === 3 && parts[1]) {
       return atob(parts[1]);
     }
     throw new Error('Decryption failed');
@@ -653,7 +614,7 @@ class SecurityService {
     return true;
   }
 
-  static async performFraudCheck(userId: string): Promise<FraudCheckResult> {
+  static async performFraudCheck(): Promise<FraudCheckResult> {
     // Simulated fraud check - in production use services like MaxMind, Sift, etc.
     return {
       score: Math.floor(Math.random() * 30), // Low fraud score for demo
@@ -671,133 +632,6 @@ class SecurityService {
 // ============================
 // CONTENT MODERATION SYSTEM
 // ============================
-
-class ModerationService {
-  static async moderateContent(content: string, type: 'text' | 'image' | 'voice' | 'video'): Promise<ModerationResult> {
-    // Simulated AI moderation - in production use OpenAI Moderation API, AWS Rekognition, etc.
-    const suspiciousWords = ['hate', 'violence', 'illegal', 'harm'];
-    const score = suspiciousWords.some(word => content.toLowerCase().includes(word)) ? 75 : 25;
-    
-    const flags = {
-      hate_speech: content.toLowerCase().includes('hate'),
-      violence: content.toLowerCase().includes('violence'),
-      sexual_explicit: content.toLowerCase().includes('explicit'),
-      sexual_minors: false,
-      harassment: content.toLowerCase().includes('harassment'),
-      self_harm: content.toLowerCase().includes('harm'),
-      illegal_activity: content.toLowerCase().includes('illegal')
-    };
-
-    return {
-      contentId: `content_${Date.now()}`,
-      contentType: type,
-      moderationScore: score,
-      flags,
-      action: score > 50 ? 'requires_review' : 'approved',
-      reviewedBy: 'ai',
-      timestamp: new Date(),
-      appealable: score > 50
-    };
-  }
-
-  static async reportContent(contentId: string, reason: string, userId: string): Promise<void> {
-    // In production: Store in database, notify moderators
-    console.log(`Content ${contentId} reported by ${userId}: ${reason}`);
-  }
-}
-
-// ============================
-// AGE VERIFICATION SYSTEM
-// ============================
-
-interface AgeVerificationProvider {
-  name: string;
-  method: 'id_scan' | 'biometric' | 'credit_card' | 'third_party';
-  accuracy: number;
-  cost: number;
-  processingTime: number; // seconds
-  endpoint: string;
-}
-
-const AGE_VERIFICATION_PROVIDERS: AgeVerificationProvider[] = [
-  {
-    name: 'Yoti',
-    method: 'id_scan',
-    accuracy: 99.5,
-    cost: 0.50,
-    processingTime: 30,
-    endpoint: '/api/verify/yoti'
-  },
-  {
-    name: 'Jumio',
-    method: 'id_scan',
-    accuracy: 99.2,
-    cost: 0.75,
-    processingTime: 45,
-    endpoint: '/api/verify/jumio'
-  },
-  {
-    name: 'Onfido',
-    method: 'biometric',
-    accuracy: 98.8,
-    cost: 1.00,
-    processingTime: 60,
-    endpoint: '/api/verify/onfido'
-  }
-];
-
-class AgeVerificationService {
-  static async initiateVerification(userId: string, provider: string): Promise<AgeVerificationSession> {
-    const selectedProvider = AGE_VERIFICATION_PROVIDERS.find(p => p.name.toLowerCase() === provider);
-    if (!selectedProvider) throw new Error('Invalid verification provider');
-
-    const session: AgeVerificationSession = {
-      userId,
-      method: selectedProvider.name.toLowerCase() as any,
-      status: 'pending',
-      verificationId: `verify_${Date.now()}`,
-      attemptCount: 1,
-      confidence: 0,
-      timestamp: new Date(),
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-      ipAddress: '192.168.1.1', // In production: get real IP
-      fraudCheck: await this.performFraudCheck(userId)
-    };
-
-    // Store session
-    await AsyncStorage.setItem(`age_verification_${userId}`, JSON.stringify(session));
-    
-    // Simulate verification process
-    setTimeout(async () => {
-      session.status = 'verified';
-      session.extractedAge = 28;
-      session.confidence = 98.5;
-      await AsyncStorage.setItem(`age_verification_${userId}`, JSON.stringify(session));
-    }, selectedProvider.processingTime * 1000);
-
-    return session;
-  }
-
-  static async performFraudCheck(userId: string): Promise<FraudCheckResult> {
-    // Simulated fraud check - in production use services like MaxMind, Sift, etc.
-    return {
-      score: Math.floor(Math.random() * 30), // Low fraud score for demo
-      flags: [],
-      vpnDetected: false,
-      proxyDetected: false,
-      disposableEmail: false,
-      suspiciousLocation: false,
-      multipleAccountsDetected: false,
-      chargebackHistory: false
-    };
-  }
-
-  static async getVerificationStatus(userId: string): Promise<AgeVerificationSession | null> {
-    const stored = await AsyncStorage.getItem(`age_verification_${userId}`);
-    return stored ? JSON.parse(stored) : null;
-  }
-}
-
 
 // ============================
 // QUANTUM-RESISTANT SECURITY IMPLEMENTATIONS (2025-2026)
@@ -913,13 +747,6 @@ interface Memory {
 // ============================
 // ADVANCED MOOD ANALYSIS & CUSTOM PERSONALITIES
 // ============================
-interface CustomAIPersonality extends AIPersonality {
-  userGenerated: boolean;
-  voiceCloneUploaded: boolean;
-  imageStyleToken: string; // for consistent image generation
-  moodAdjustment: number; // dynamic mood modifier
-  cycleMode: CycleMode;
-}
 
 enum CycleMode {
   MORNING_FOCUS = 'morning_focus',    // Professional, motivational, productive
@@ -947,15 +774,6 @@ interface VaultAccess {
 // ============================
 // IMAGE GENERATION SYSTEM (Instagram/TikTok Trending)
 // ============================
-interface ImageAPIConfig {
-  name: string;
-  endpoint: string;
-  apiKey: string;
-  priority: number;
-  maxRetries: number;
-  supports_nsfw: boolean;
-  real_time: boolean;
-}
 
 interface ImageGenerationRequest {
   prompt: string;
@@ -985,15 +803,6 @@ interface ImageGenerationResponse {
 // ============================
 // VOICE SYNTHESIS SYSTEM (ElevenLabs + Chinese Voice Tech)
 // ============================
-interface VoiceAPIConfig {
-  name: string;
-  endpoint: string;
-  apiKey: string;
-  priority: number;
-  supports_emotions: boolean;
-  real_time: boolean;
-  voice_cloning: boolean;
-}
 
 interface VoiceGenerationRequest {
   text: string;
@@ -1027,62 +836,11 @@ interface SubscriptionTier {
   prioritySupport: boolean;
 }
 
-interface VirtualGift {
-  id: string;
-  name: string;
-  emoji: string;
-  price: number;
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  effect: string;
-  unlocks?: string;
-}
-
-interface ContentRequest {
-  id: string;
-  userId: string;
-  personalityId: string;
-  type: 'photo' | 'video' | 'voice' | 'custom_chat';
-  description: string;
-  price: number;
-  status: 'pending' | 'accepted' | 'completed' | 'rejected';
-  deadline: Date;
-  isNSFW: boolean;
-}
-
 // ============================
 // SOCIAL MEDIA INTEGRATION (Instagram/TikTok/Chinese Platforms)
 // ============================
-interface SocialPlatform {
-  name: 'instagram' | 'tiktok' | 'twitter' | 'weibo' | 'douyin' | 'xiaohongshu';
-  apiEndpoint: string;
-  apiKey: string;
-  isActive: boolean;
-  autoPost: boolean;
-  contentTypes: string[];
-}
-
-interface ContentSchedule {
-  id: string;
-  platform: string;
-  content: string;
-  media: string[];
-  scheduledTime: Date;
-  hashtags: string[];
-  isNSFW: boolean;
-  personalityId: string;
-  targetAudience: string;
-}
-
 
 // Video Generation API Configuration
-interface VideoAPIConfig {
-  name: string;
-  endpoint: string;
-  apiKey: string;
-  priority: number;
-  maxRetries: number;
-}
-
 
 interface VideoGenerationRequest {
   prompt: string;
@@ -1332,29 +1090,6 @@ const createSecureVault = (): SecureContentVault => {
   };
 };
 
-const encryptContent = (content: string, key: string): string => {
-  // Simple XOR encryption for demo (use proper encryption in production)
-  let encrypted = '';
-  for (let i = 0; i < content.length; i++) {
-    encrypted += String.fromCharCode(content.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-  }
-  return btoa(encrypted); // Base64 encode
-};
-
-const decryptContent = (encryptedContent: string, key: string): string => {
-  try {
-    const decoded = atob(encryptedContent); // Base64 decode
-    let decrypted = '';
-    for (let i = 0; i < decoded.length; i++) {
-      decrypted += String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-    }
-    return decrypted;
-  } catch (error) {
-    console.error('Decryption failed:', error);
-    return '';
-  }
-};
-
 // ============================
 // PRE-DEFINED AI PERSONALITIES (Chinese Platform Style)
 // ============================
@@ -1582,44 +1317,11 @@ const subscriptionTiers: SubscriptionTier[] = [
 // ============================
 // VIRTUAL GIFTS SYSTEM (Chinese Platform Style)
 // ============================
-const virtualGifts: VirtualGift[] = [
-  { id: 'heart', name: 'Heart', emoji: '❤️', price: 1, rarity: 'common', effect: '+5 affection' },
-  { id: 'rose', name: 'Rose', emoji: '🌹', price: 5, rarity: 'common', effect: '+10 romance' },
-  { id: 'diamond', name: 'Diamond', emoji: '💎', price: 25, rarity: 'rare', effect: '+20 excitement' },
-  { id: 'crown', name: 'Crown', emoji: '👑', price: 50, rarity: 'epic', effect: 'Unlocks royal treatment' },
-  { id: 'kiss', name: 'Kiss', emoji: '💋', price: 10, rarity: 'common', effect: '+15 intimacy' },
-  { id: 'champagne', name: 'Champagne', emoji: '🍾', price: 30, rarity: 'rare', effect: 'Virtual celebration' },
-  { id: 'lingerie', name: 'Lingerie', emoji: '👙', price: 75, rarity: 'epic', effect: 'Unlocks intimate photos' },
-  { id: 'yacht', name: 'Yacht', emoji: '🛥️', price: 500, rarity: 'legendary', effect: 'Virtual vacation date' }
-];
-
 
 type AppMode = 'main' | 'chat' | 'personalities' | 'gallery' | 'shop' | 'settings' | 'security-dashboard';
 
 
 export default function App() {
-  // ============================
-  // ENHANCED SECURITY STATE MANAGEMENT
-  // ============================
-  const [securityMode, setSecurityMode] = useState<'standard' | 'enterprise'>('enterprise');
-  const [currentUser, setCurrentUser] = useState<SecureUser | null>(null);
-  const [ageVerificationStatus, setAgeVerificationStatus] = useState<AgeVerificationSession | null>(null);
-  const [loginAttempts, setLoginAttempts] = useState(0);
-  const [isAccountLocked, setIsAccountLocked] = useState(false);
-  const [mfaRequired, setMfaRequired] = useState(false);
-  const [showAgeVerification, setShowAgeVerification] = useState(false);
-  const [complianceRecord, setComplianceRecord] = useState<ComplianceRecord | null>(null);
-  const [moderationQueue, setModerationQueue] = useState<ModerationResult[]>([]);
-  
-  // ============================
-  // ADVANCED SECURITY STATE MANAGEMENT
-  // ============================
-  const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
-  const [rateLimitStatus, setRateLimitStatus] = useState<{[key: string]: {remaining: number, resetTime: number}}>({});
-  const [inputValidationErrors, setInputValidationErrors] = useState<{[key: string]: string}>({});
-  const [securityMonitoringEnabled, setSecurityMonitoringEnabled] = useState(true);
-  const [lastSecurityScan, setLastSecurityScan] = useState<Date | null>(null);
-  
   // ============================
   // EXISTING STATE VARIABLES (Enhanced with Security)
   // ============================
@@ -1628,7 +1330,6 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [openai, setOpenai] = useState<OpenAI | null>(null);
   const [currentMode, setCurrentMode] = useState<AppMode>('main');
-  const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   
   // ============================
@@ -1637,25 +1338,15 @@ export default function App() {
   const [selectedPersonality, setSelectedPersonality] = useState<AIPersonality | null>(null);
   const [relationshipStates, setRelationshipStates] = useState<RelationshipState[]>([]);
   const [generatedImages, setGeneratedImages] = useState<ImageGenerationResponse[]>([]);
-  const [userSubscription, setUserSubscription] = useState<SubscriptionTier>(subscriptionTiers[0]);
   const [userCredits, setUserCredits] = useState(100);
-  const [conversationMemory, setConversationMemory] = useState<ConversationMemory[]>([]);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
-  const [currentEmotion, setCurrentEmotion] = useState<string>('neutral');
   const [intimacyLevel, setIntimacyLevel] = useState(0);
-  const [showNSFWContent, setShowNSFWContent] = useState(false);
   
   // ============================
   // ENHANCED MOOD & PERSONALITY STATE
   // ============================
   const [currentMood, setCurrentMood] = useState(0);
   const [cycleMode, setCycleMode] = useState<CycleMode>(getCurrentCycleMode());
-  const [customPersonalities, setCustomPersonalities] = useState<CustomAIPersonality[]>([]);
-  const [secureVault, setSecureVault] = useState<SecureContentVault>(createSecureVault());
-  const [vaultUnlocked, setVaultUnlocked] = useState(false);
-  const [userPin, setUserPin] = useState<string>('');
-  const [moodHistory, setMoodHistory] = useState<{timestamp: Date, mood: number}[]>([]);
+  const [securityMonitoringEnabled, setSecurityMonitoringEnabled] = useState(true);
  
   const [userProfile, setUserProfile] = useState<UserProfile>({
     name: '',
@@ -1673,15 +1364,6 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error loading secure vault:', error);
-    }
-  };
-
-  const saveSecureVault = async (vault: SecureContentVault) => {
-    try {
-      await AsyncStorage.setItem('secure_vault', JSON.stringify(vault));
-      setSecureVault(vault);
-    } catch (error) {
-      console.error('Error saving secure vault:', error);
     }
   };
 
@@ -1707,17 +1389,6 @@ export default function App() {
 
   const initializeSecurity = async () => {
     try {
-      // Check if user requires age verification
-      const needsVerification = await checkAgeVerificationRequired();
-      if (needsVerification && !currentUser?.ageVerified) {
-        setShowAgeVerification(true);
-        return;
-      }
-
-      // Load compliance record
-      const compliance = await loadComplianceRecord();
-      setComplianceRecord(compliance);
-
       // Initialize fraud detection
       await initializeFraudDetection();
 
@@ -1728,51 +1399,10 @@ export default function App() {
     }
   };
 
-  const checkAgeVerificationRequired = async (): Promise<boolean> => {
-    // Check if user has adult content enabled or is accessing NSFW features
-    return showNSFWContent || userSubscription.nsfwAccess;
-  };
-
-  const loadComplianceRecord = async (): Promise<ComplianceRecord | null> => {
-    try {
-      const stored = await safeStorageGet('compliance_record');
-      if (stored) {
-        return deserializeDates(stored, ['gdprConsent.timestamp', 'lastPolicyUpdate']);
-      }
-      
-      // Create default compliance record
-      const defaultRecord: ComplianceRecord = {
-        userId: currentUser?.id || 'demo_user',
-        gdprConsent: {
-          marketing: false,
-          analytics: false,
-          dataProcessing: false,
-          timestamp: new Date(),
-          ipAddress: '192.168.1.1'
-        },
-        ccpaOptOut: false,
-        coppaCompliant: false,
-        ageVerificationRequired: showNSFWContent,
-        dataRetentionPeriod: 365,
-        dataExportRequested: false,
-        dataDeletionRequested: false,
-        lastPolicyUpdate: new Date('2024-01-01'),
-        policyVersion: '1.0'
-      };
-      
-      await safeStorageSet('compliance_record', defaultRecord);
-      return defaultRecord;
-    } catch (error) {
-      console.error('Error loading compliance record:', error);
-      return null;
-    }
-  };
-
   const initializeFraudDetection = async () => {
     try {
       // Initialize fraud detection systems
-      const deviceFingerprint = await generateDeviceFingerprint();
-      const fraudCheck = await SecurityService.performFraudCheck(currentUser?.id || 'demo_user');
+      const fraudCheck = await SecurityService.performFraudCheck();
       
       if (fraudCheck.score > 70) {
         Alert.alert(
@@ -1784,310 +1414,6 @@ export default function App() {
     } catch (error) {
       console.error('Fraud detection initialization failed:', error);
     }
-  };
-
-  const generateDeviceFingerprint = async (): Promise<string> => {
-    // Generate unique device fingerprint (simplified for demo)
-    const timestamp = Date.now();
-    const userAgent = 'React-Native-App';
-    const screenInfo = 'mobile'; // In production, get actual screen info
-    return `${userAgent}_${screenInfo}_${timestamp}`;
-  };
-
-  const handleSecureLogin = async (email: string, password: string) => {
-    try {
-      // ============================
-      // ENHANCED SECURITY VALIDATION
-      // ============================
-
-      // Validate email input
-      const emailValidation = SecurityValidator.validateEmail(email);
-      if (!emailValidation.isValid) {
-        SecurityMonitor.logEvent({
-          type: 'suspicious_input',
-          severity: 'medium',
-          message: `Invalid email during login: ${emailValidation.error}`,
-          metadata: { email, error: emailValidation.error }
-        });
-        Alert.alert('Security Alert', emailValidation.error || 'Invalid email format');
-        return;
-      }
-
-      // Validate password input
-      const passwordValidation = SecurityValidator.validatePassword(password);
-      if (!passwordValidation.isValid) {
-        SecurityMonitor.logEvent({
-          type: 'suspicious_input',
-          severity: 'high',
-          message: `Invalid password during login: ${passwordValidation.error}`,
-          metadata: { email: emailValidation.sanitized, error: passwordValidation.error }
-        });
-        Alert.alert('Security Alert', passwordValidation.error || 'Invalid password');
-        return;
-      }
-
-      // Rate limiting check
-      const rateLimitKey = `login_${emailValidation.sanitized}`;
-      const rateLimitResult = RateLimiter.checkLimit(rateLimitKey);
-
-      if (!rateLimitResult.allowed) {
-        SecurityMonitor.logEvent({
-          type: 'rate_limit_exceeded',
-          severity: 'high',
-          message: 'Login rate limit exceeded',
-          metadata: { email: emailValidation.sanitized, remaining: rateLimitResult.remaining, resetTime: rateLimitResult.resetTime }
-        });
-
-        setIsAccountLocked(true);
-        const resetInMinutes = Math.ceil((rateLimitResult.resetTime - Date.now()) / (1000 * 60));
-        Alert.alert('Account Locked', `Too many login attempts. Try again in ${resetInMinutes} minutes.`);
-        return;
-      }
-
-      // Update rate limit status
-      setRateLimitStatus(prev => ({
-        ...prev,
-        [rateLimitKey]: { remaining: rateLimitResult.remaining, resetTime: rateLimitResult.resetTime }
-      }));
-
-      setLoginAttempts((prev: number) => prev + 1);
-
-      // Log login attempt
-      SecurityMonitor.logEvent({
-        type: 'auth_attempt',
-        severity: 'low',
-        message: 'Login attempt initiated',
-        metadata: { email: emailValidation.sanitized, attemptNumber: loginAttempts + 1 }
-      });
-
-      // Hash password and verify (in production, send to backend)
-      const hashedPassword = await SecurityService.hashPassword(password);
-      
-      // Simulate user lookup and verification
-      const user: SecureUser = {
-        id: 'demo_user_secure',
-        email: email,
-        hashedPassword: hashedPassword,
-        mfaEnabled: true,
-        ageVerified: false,
-        ageVerificationMethod: null,
-        ageVerificationProvider: null,
-        ageVerificationDate: null,
-        kycStatus: 'pending',
-        accountCreated: new Date(),
-        lastLogin: new Date(),
-        loginAttempts: loginAttempts,
-        accountLocked: false,
-        sessionToken: SecurityService.generateJWT('demo_user_secure', 'user'),
-        refreshToken: SecurityService.generateJWT('demo_user_secure', 'refresh'),
-        ipAddress: '192.168.1.1',
-        deviceFingerprint: await generateDeviceFingerprint(),
-        consentTimestamp: new Date(),
-        gdprConsent: true,
-        termsAccepted: true,
-        contentWarningsAccepted: false,
-        role: 'user'
-      };
-
-      setCurrentUser(user);
-      setLoginAttempts(0);
-
-      // Log successful login
-      SecurityMonitor.logEvent({
-        type: 'auth_success',
-        severity: 'low',
-        message: 'User login successful',
-        userId: user.id,
-        metadata: { email: emailValidation.sanitized, role: user.role }
-      });
-
-      // Reset rate limiting on successful login
-      RateLimiter.reset(rateLimitKey);
-      setRateLimitStatus(prev => {
-        const updated = { ...prev };
-        delete updated[rateLimitKey];
-        return updated;
-      });
-      
-      // Check if MFA is required
-      if (user.mfaEnabled) {
-        setMfaRequired(true);
-        return;
-      }
-
-      // Check if age verification is required
-      const needsVerification = await checkAgeVerificationRequired();
-      if (needsVerification && !user.ageVerified) {
-        setShowAgeVerification(true);
-        return;
-      }
-
-      await initializeSecurity();
-      
-    } catch (error) {
-      // Log authentication failure
-      SecurityMonitor.logEvent({
-        type: 'auth_failure',
-        severity: 'medium',
-        message: 'Login authentication failed',
-        metadata: {
-          email: email ? email.substring(0, 3) + '***' : 'unknown', // Partial email for privacy
-          error: error instanceof Error ? error.message : 'Unknown error',
-          attemptNumber: loginAttempts + 1
-        }
-      });
-
-      console.error('Login failed:', error);
-      Alert.alert('Login Failed', 'Invalid credentials or security error. Please try again.');
-    }
-  };
-
-  const handleAgeVerification = async (provider: string) => {
-    try {
-      if (!currentUser) {
-        Alert.alert('Error', 'Please log in first');
-        return;
-      }
-
-      const session = await AgeVerificationService.initiateVerification(currentUser.id, provider);
-      setAgeVerificationStatus(session);
-
-      // Monitor verification status
-      const checkStatus = async () => {
-        const updatedSession = await AgeVerificationService.getVerificationStatus(currentUser.id);
-        if (updatedSession) {
-          setAgeVerificationStatus(updatedSession);
-          
-          if (updatedSession.status === 'verified') {
-            // Update user record
-            const updatedUser = {
-              ...currentUser,
-              ageVerified: true,
-              ageVerificationMethod: updatedSession.method,
-              ageVerificationProvider: provider,
-              ageVerificationDate: new Date()
-            };
-            setCurrentUser(updatedUser);
-            setShowAgeVerification(false);
-            
-            await safeStorageSet('secure_user', updatedUser);
-            Alert.alert('Verification Complete', 'Age verification successful! You now have access to all content.');
-          } else if (updatedSession.status === 'failed') {
-            Alert.alert('Verification Failed', 'Age verification failed. Please try a different method.');
-          }
-        }
-      };
-
-      // Check status every 5 seconds
-      const statusInterval = setInterval(checkStatus, 5000);
-      setTimeout(() => clearInterval(statusInterval as any), 60000); // Stop after 1 minute
-
-    } catch (error) {
-      console.error('Age verification failed:', error);
-      Alert.alert('Verification Error', 'Age verification process failed. Please try again.');
-    }
-  };
-
-  const moderateMessage = async (message: string): Promise<boolean> => {
-    try {
-      const moderation = await ModerationService.moderateContent(message, 'text');
-      setModerationQueue((prev: ModerationResult[]) => [...prev, moderation]);
-      
-      if (moderation.action === 'blocked') {
-        Alert.alert(
-          'Content Blocked',
-          'Your message contains content that violates our community guidelines and cannot be sent.',
-          [{ text: 'OK' }]
-        );
-        return false;
-      } else if (moderation.action === 'requires_review') {
-        Alert.alert(
-          'Content Under Review',
-          'Your message has been flagged for review. It will be processed shortly.',
-          [{ text: 'OK' }]
-        );
-        return false;
-      }
-      
-      return true;
-    } catch (error) {
-      console.error('Content moderation failed:', error);
-      return true; // Allow message if moderation fails
-    }
-  };
-
-  const handleDataExportRequest = async () => {
-    try {
-      if (!currentUser) return;
-
-      // Gather all user data
-      const userData = {
-        profile: userProfile,
-        conversations: conversationMemory,
-        relationships: relationshipStates,
-        vault: secureVault,
-        compliance: complianceRecord,
-        timestamp: new Date()
-      };
-
-      const encryptedData = await SecurityService.encryptData(JSON.stringify(userData));
-      
-      // In production: Send to secure download service
-      Alert.alert(
-        'Data Export Prepared',
-        'Your data export has been prepared and will be available for download within 24 hours. You will receive an email notification.',
-        [{ text: 'OK' }]
-      );
-
-      // Update compliance record
-      if (complianceRecord) {
-        const updated = { ...complianceRecord, dataExportRequested: true };
-        setComplianceRecord(updated);
-        await safeStorageSet('compliance_record', updated);
-      }
-
-    } catch (error) {
-      console.error('Data export failed:', error);
-      Alert.alert('Export Error', 'Failed to prepare data export. Please try again.');
-    }
-  };
-
-  const handleDataDeletionRequest = async () => {
-    Alert.alert(
-      'Delete All Data',
-      'Are you sure you want to permanently delete all your data? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Clear all stored data
-              await AsyncStorage.clear();
-              
-              // Reset all state
-              setCurrentUser(null);
-              setUserProfile({
-                name: '',
-                veteran_status: false,
-                language_preference: 'en',
-                accessibility_needs: []
-              });
-              setRelationshipStates([]);
-              setConversationMemory([]);
-              setSecureVault(createSecureVault());
-              
-              Alert.alert('Data Deleted', 'All your data has been permanently deleted.');
-              
-            } catch (error) {
-              console.error('Data deletion failed:', error);
-              Alert.alert('Deletion Error', 'Failed to delete data. Please try again.');
-            }
-          }
-        }
-      ]
-    );
   };
 
   useEffect(() => {
@@ -2162,15 +1488,6 @@ export default function App() {
   };
 
 
-  const saveUserProfile = async (profile: UserProfile) => {
-    try {
-      await AsyncStorage.setItem('user_profile', JSON.stringify(profile));
-      setUserProfile(profile);
-    } catch (error) {
-      console.error('Error saving user profile:', error);
-    }
-  };
-
   // ============================
   // SECURE API CALLS THROUGH BACKEND PROXY
   // ============================
@@ -2230,7 +1547,7 @@ export default function App() {
     }
 
     const data = await response.json();
-    return data.audioUrl || URL.createObjectURL(new Blob([data.audioData], { type: 'audio/mpeg' }));
+    return data.audioUrl || URL.createObjectURL(new Blob([data.audioData], { type: 'audio/mpeg', lastModified: Date.now() }));
   };
 
   const tryVideoAPI = async (api: SecureAPIConfig, request: VideoGenerationRequest): Promise<VideoGenerationResponse> => {
@@ -2354,25 +1671,6 @@ export default function App() {
   // ============================
   // ROBUST ASYNCSTORAGE WITH ERROR HANDLING
   // ============================
-  const safeStorageGet = async (key: string, defaultValue: any = null) => {
-    try {
-      const stored = await AsyncStorage.getItem(key);
-      return stored ? JSON.parse(stored) : defaultValue;
-    } catch (error) {
-      console.error(`Error loading ${key}:`, error);
-      Alert.alert('Storage Error', `Failed to load ${key}. Using defaults.`);
-      return defaultValue;
-    }
-  };
-
-  const safeStorageSet = async (key: string, value: any) => {
-    try {
-      await AsyncStorage.setItem(key, JSON.stringify(serializeDates(value)));
-    } catch (error) {
-      console.error(`Error saving ${key}:`, error);
-      Alert.alert('Storage Error', `Failed to save ${key}. Changes may be lost.`);
-    }
-  };
   const loadPersonalities = async () => {
     try {
       const stored = await AsyncStorage.getItem('ai_personalities');
@@ -2401,7 +1699,20 @@ export default function App() {
       const existingIndex = existingStates.findIndex(state => state.personalityId === personalityId);
       
       if (existingIndex >= 0) {
-        existingStates[existingIndex] = { ...existingStates[existingIndex], ...updates };
+        const existing = existingStates[existingIndex];
+        if (existing) {
+          existingStates[existingIndex] = {
+            personalityId,
+            conversationCount: updates.conversationCount ?? existing.conversationCount,
+            totalTimeSpent: updates.totalTimeSpent ?? existing.totalTimeSpent,
+            lastInteraction: updates.lastInteraction ?? existing.lastInteraction,
+            relationshipMilestones: updates.relationshipMilestones ?? existing.relationshipMilestones,
+            sharedMemories: updates.sharedMemories ?? existing.sharedMemories,
+            intimateLevel: updates.intimateLevel ?? existing.intimateLevel,
+            emotionalBond: updates.emotionalBond ?? existing.emotionalBond,
+            userSatisfaction: updates.userSatisfaction ?? existing.userSatisfaction
+          };
+        }
       } else {
         existingStates.push({
           personalityId,
@@ -2639,7 +1950,7 @@ const getImageCost = (request: ImageGenerationRequest): number => {
         type: 'suspicious_input',
         severity: 'medium',
         message: `Invalid message input: ${validation.error}`,
-        userId: currentUser?.id,
+        ...(currentUser?.id && { userId: currentUser.id }),
         metadata: { inputText, error: validation.error }
       });
 
@@ -2660,7 +1971,7 @@ const getImageCost = (request: ImageGenerationRequest): number => {
         type: 'rate_limit_exceeded',
         severity: 'medium',
         message: 'Message rate limit exceeded',
-        userId: currentUser?.id,
+        ...(currentUser?.id && { userId: currentUser.id }),
         metadata: { remaining: rateLimitResult.remaining, resetTime: rateLimitResult.resetTime }
       });
 
@@ -2680,7 +1991,7 @@ const getImageCost = (request: ImageGenerationRequest): number => {
       type: 'auth_success', // Using auth_success as generic success event
       severity: 'low',
       message: 'Message input validated successfully',
-      userId: currentUser?.id,
+      ...(currentUser?.id && { userId: currentUser.id }),
       metadata: { messageLength: inputText.length }
     });
 
@@ -2945,14 +2256,9 @@ const getImageCost = (request: ImageGenerationRequest): number => {
         <Text style={styles.headerSubtitle}>Veteran-Focused Content Creation & Support</Text>
        
         <View style={styles.profileSection}>
-          <TouchableOpacity
-            style={styles.profileButton}
-            onPress={() => setShowProfileSetup(true)}
-          >
-            <Text style={styles.profileButtonText}>
-              {userProfile.name ? `👤 ${userProfile.name}` : '👤 Setup Profile'}
-            </Text>
-          </TouchableOpacity>
+          <Text style={styles.profileButtonText}>
+            {userProfile.name ? `👤 ${userProfile.name}` : '👤 Guest User'}
+          </Text>
          
           <TouchableOpacity
             style={[styles.voiceToggle, isVoiceMode && styles.voiceToggleActive]}
@@ -3126,56 +2432,6 @@ const getImageCost = (request: ImageGenerationRequest): number => {
         </TouchableOpacity>
       </View>
     </SafeAreaView>
-  );
-
-
-  const renderProfileSetup = () => (
-    <Modal visible={showProfileSetup} animationType="slide">
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Profile Setup</Text>
-          <TouchableOpacity onPress={() => setShowProfileSetup(false)}>
-            <Text style={styles.closeButton}>✕</Text>
-          </TouchableOpacity>
-        </View>
-       
-        <ScrollView style={styles.modalContent}>
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Name</Text>
-            <TextInput
-              style={styles.input}
-              value={userProfile.name}
-              onChangeText={(text: string) => setUserProfile((prev: any) => ({ ...prev, name: text }))}
-              placeholder="Enter your name"
-              placeholderTextColor="#888"
-            />
-          </View>
-         
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Veteran Status</Text>
-            <TouchableOpacity
-              style={[styles.checkbox, userProfile.veteran_status && styles.checkboxChecked]}
-              onPress={() => setUserProfile((prev: any) => ({ ...prev, veteran_status: !prev.veteran_status }))}
-            >
-              <Text style={styles.checkboxText}>
-                {userProfile.veteran_status ? '✓' : ''} I am a military veteran
-              </Text>
-            </TouchableOpacity>
-          </View>
-         
-          <TouchableOpacity
-            style={styles.saveButton}
-            onPress={() => {
-              saveUserProfile(userProfile);
-              setShowProfileSetup(false);
-              Alert.alert('Profile Saved', 'Your profile has been saved successfully!');
-            }}
-          >
-            <Text style={styles.saveButtonText}>Save Profile</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
   );
 
 
