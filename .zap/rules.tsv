@@ -1,0 +1,134 @@
+# OWASP ZAP Security Rules for AI Companion Platform
+# Format: PluginID\tAlertThreshold\tAttackThreshold
+
+# Authentication & Session Management
+40012\tLOW\tLOW\t\tAuthentication Request Identified
+40018\tLOW\tLOW\t\tSQL Injection
+40019\tLOW\tLOW\t\tSQL Injection - MySQL
+40020\tLOW\tLOW\t\tSQL Injection - Hypersonic SQL
+40021\tLOW\tLOW\t\tSQL Injection - Oracle
+40022\tLOW\tLOW\t\tSQL Injection - PostgreSQL
+40023\tLOW\tLOW\t\tSQL Injection - MsSQL
+40024\tLOW\tLOW\t\tSQL Injection - SQLite
+40025\tLOW\tLOW\t\tSQL Injection - InLine Comments
+40026\tLOW\tLOW\t\tSQL Injection - Union Based
+40027\tLOW\tLOW\t\tSQL Injection - Tautology
+40028\tLOW\tLOW\t\tSQL Injection - Error Based
+40029\tLOW\tLOW\t\tSQL Injection - Blind
+40030\tLOW\tLOW\t\tSQL Injection - Time Based
+40031\tLOW\tLOW\t\tSQL Injection - Boolean Based
+40032\tLOW\tLOW\t\tSQL Injection - Stacked Queries
+
+# Cross-Site Scripting (XSS)
+40012\tLOW\tLOW\t\tCross Site Scripting (Reflected)
+40013\tLOW\tLOW\t\tCross Site Scripting (Persistent)
+40014\tLOW\tLOW\t\tCross Site Scripting (Persistent) - Prime
+40015\tLOW\tLOW\t\tCross Site Scripting (Persistent) - Spider
+40016\tLOW\tLOW\t\tCross Site Scripting (DOM Based)
+40017\tLOW\tLOW\t\tCross Site Scripting (Reflected) - Prime
+
+# Cross-Site Request Forgery (CSRF)
+40010\tMEDIUM\tMEDIUM\t\tCross Site Request Forgery
+
+# Security Misconfigurations
+10010\tLOW\tLOW\t\tCookie No HttpOnly Flag
+10011\tLOW\tLOW\t\tCookie Without Secure Flag
+10012\tLOW\tLOW\t\tGET for POST
+10013\tLOW\tLOW\t\tTimestamp Disclosure
+10014\tLOW\tLOW\t\tHTTP Parameter Override
+10015\tLOW\tLOW\t\tInformation Disclosure - Debug Error Messages
+10016\tLOW\tLOW\t\tInformation Disclosure - Sensitive Information in URL
+10017\tLOW\tLOW\t\tInformation Disclosure - Sensitive Information in HTTP Referrer Header
+10018\tLOW\tLOW\t\tInformation Disclosure - Suspicious Comments
+10019\tLOW\tLOW\t\tInformation Disclosure - Inconsistent Behavior
+10020\tLOW\tLOW\t\tInformation Disclosure - Sensitive Information in HTML
+10021\tLOW\tLOW\t\tX-Frame-Options Header Not Set
+10022\tLOW\tLOW\t\tX-Content-Type-Options Header Missing
+10023\tLOW\tLOW\t\tContent Security Policy (CSP) Header Not Set
+10024\tLOW\tLOW\t\tX-Content-Security-Policy Header Missing
+10025\tLOW\tLOW\t\tInformation Disclosure - Sensitive Information in HTTP Headers
+10026\tLOW\tLOW\t\tHTTP Parameter Pollution
+10027\tLOW\tLOW\t\tInformation Disclosure - Suspicious Comments
+10028\tLOW\tLOW\t\tOpen Redirect
+10029\tLOW\tLOW\t\tCookie Poisoning
+10030\tLOW\tLOW\t\tUser Controllable Charset
+10031\tLOW\tLOW\t\tUser Controllable HTML Element Attribute (Potential XSS)
+10032\tLOW\tLOW\t\tViewStateUserKey Missing
+10033\tLOW\tLOW\t\tDirectory Browsing
+10034\tLOW\tLOW\t\tHeartbleed OpenSSL Vulnerability
+10035\tLOW\tLOW\t\tStrict-Transport-Security Header Not Set
+10036\tLOW\tLOW\t\tServer Leaks Information via "X-Powered-By" HTTP Response Header Field(s)
+10037\tLOW\tLOW\t\tServer Leaks Version Information via "Server" HTTP Response Header Field
+10038\tLOW\tLOW\t\tContent-Type Header Missing
+10039\tLOW\tLOW\t\tAnti-CSRF Tokens Check
+10040\tLOW\tLOW\t\tHTTP Verb Tampering
+10041\tLOW\tLOW\t\tHTTP Request Smuggling
+10042\tLOW\tLOW\t\tHTTP Response Splitting
+10043\tLOW\tLOW\t\tNull Byte Injection
+10044\tLOW\tLOW\t\tBig Redirect Detected (Potential Sensitive Information Leak)
+10045\tLOW\tLOW\t\tSource Code Disclosure - /WEB-INF folder
+10046\tLOW\tLOW\t\tWeb Server Uses Plaintext Authentication Over An Encrypted Channel
+10047\tLOW\tLOW\t\tHTTPS Content Available via HTTP
+10048\tLOW\tLOW\t\tFavicon is Default
+10049\tLOW\tLOW\t\tRetrieval of Non-existent Resource
+10050\tLOW\tLOW\t\tRetrieved from Cache
+10051\tLOW\tLOW\t\tRelative Path Confusion
+10052\tLOW\tLOW\t\tX-ChromeLogger-Data (XCOLD) Header Information Leak
+10053\tLOW\tLOW\t\tWeak Authentication Method
+10054\tLOW\tLOW\t\tAuthentication Credentials Captured
+10055\tLOW\tLOW\t\tCSP
+10056\tLOW\tLOW\t\tX-Debug-Token Information Leak
+10057\tLOW\tLOW\t\tUsername Hash Found
+10058\tLOW\tLOW\t\tGET for POST
+10059\tLOW\tLOW\t\tToo Many Cookies
+10060\tLOW\tLOW\t\tSource Code Disclosure - CVE-2012-1823
+10061\tLOW\tLOW\t\tHTTP Only Site
+10062\tLOW\tLOW\t\tUser Agent Fuzzer
+10063\tLOW\tLOW\t\tUser Controllable JavaScript Event (XSS)
+10064\tLOW\tLOW\t\tX-Backend-Server Header Information Leak
+10065\tLOW\tLOW\t\tHeartbleed OpenSSL Vulnerability (Indicative)
+10066\tLOW\tLOW\t\tHTTP/2 Upgrade
+10067\tLOW\tLOW\t\tWeak HTTP Verb
+10068\tLOW\tLOW\t\tDirectory Browsing - CVE-2010-0738
+10069\tLOW\tLOW\t\tOut of Band XSS
+10070\tLOW\tLOW\t\tUse of SAML
+10071\tLOW\tLOW\t\tCookie without SameSite Attribute
+10072\tLOW\tLOW\t\tX-Forwarded-For Header Information Leak
+10073\tLOW\tLOW\t\tScript Active Scan Rules
+10074\tLOW\tLOW\t\tServer Side Template Injection
+10075\tLOW\tLOW\t\tServer Side Template Injection (Blind)
+10076\tLOW\tLOW\t\tServer Side Template Injection (Code Context)
+10077\tLOW\tLOW\t\tServer Side Template Injection (Expression Language)
+10078\tLOW\tLOW\t\tCross Site Scripting (DOM Based) - Prime
+10079\tLOW\tLOW\t\tCross Site Scripting (DOM Based) - Reflected
+10080\tLOW\tLOW\t\tCross Site Scripting (DOM Based) - Stored
+10081\tLOW\tLOW\t\tXPath Injection
+10082\tLOW\tLOW\t\tPadding Oracle
+10083\tLOW\tLOW\t\tLDAP Injection
+10084\tLOW\tLOW\t\tXML Injection
+10085\tLOW\tLOW\t\tServer Side Request Forgery
+10086\tLOW\tLOW\t\tRemote Code Execution - CVE-2012-1823
+10087\tLOW\tLOW\t\tBackup File Disclosure
+10088\tLOW\tLOW\t\tELMAH Information Leak
+10089\tLOW\tLOW\t\tTrace.axd Information Leak
+10090\tLOW\tLOW\t\tSource Code Disclosure - Git
+10091\tLOW\tLOW\t\tSource Code Disclosure - SVN
+10092\tLOW\tLOW\t\tSource Code Disclosure - File Inclusion
+10093\tLOW\tLOW\t\tWeak Authentication Method
+10094\tLOW\tLOW\t\tEL Injection
+10095\tLOW\tLOW\t\tCleartext Submission of Password
+10096\tLOW\tLOW\t\tCookie Without SameSite Attribute
+10097\tLOW\tLOW\t\tWeak Cipher
+10098\tLOW\tLOW\t\tInsecure HTTP Method
+10099\tLOW\tLOW\t\tWeak RNG
+10100\tLOW\tLOW\t\tWebDAV
+10101\tLOW\tLOW\t\tInternal IP Disclosure
+10102\tLOW\tLOW\t\tSession ID in URL Rewrite
+10103\tLOW\tLOW\t\tResource Fingerprinting
+10104\tLOW\tLOW\t\tViewState
+10105\tLOW\tLOW\t\tWeak Authentication Method
+10106\tLOW\tLOW\t\tHTTP PUT Method Allowed
+10107\tLOW\tLOW\t\tHttpOnly Cookie
+10108\tLOW\tLOW\t\tAnti CSRF Tokens
+10109\tLOW\tLOW\t\tWeak Cipher
+10110\tLOW\tLOW\t\tReDoS Vulnerability

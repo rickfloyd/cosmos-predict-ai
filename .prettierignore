@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+android/
+ios/
+build/
+dist/
+
+# Generated files
+*.bundle.js
+*.map
+
+# Lock files
+package-lock.json
+yarn.lock
+
+# Environment files
+.env
+.env.local
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Security files (keep original formatting)
+security-config.ini
+.zap/

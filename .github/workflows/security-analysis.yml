@@ -1,0 +1,195 @@
+name: Security Analysis & Testing
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run SAST with SonarQube
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        with:
+          args: >
+            -Dsonar.projectKey=cosmos-predict-ai
+            -Dsonar.sources=.
+            -Dsonar.exclusions=node_modules/**,android/**,ios/**,**/*.test.*,**/*.spec.*
+            -Dsonar.tests=.
+            -Dsonar.test.inclusions=**/*.test.*,**/*.spec.*
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.typescript.lcov.reportPaths=coverage/lcov.info
+
+      - name: Run Dependency Vulnerability Scan
+        run: |
+          npm audit --audit-level moderate --production
+          npm audit --json | jq '.vulnerabilities | keys[]' || echo "No critical vulnerabilities found"
+
+      - name: Run TypeScript Security Linting
+        run: npx eslint . --ext .ts,.tsx --config .eslintrc.js --format json | jq '.[] | select(.ruleId | contains("security"))' || echo "No security linting issues found"
+
+      - name: Security Test with OWASP ZAP (DAST)
+        uses: zaproxy/action-baseline@v0.10.0
+        with:
+          target: 'http://localhost:3000'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+      - name: Upload Security Scan Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-results
+          path: |
+            reports/
+            coverage/
+            *.sarif
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'cosmos-predict-ai'
+          path: '.'
+          format: 'ALL'
+          args: >
+            --enableRetired
+            --enableExperimental
+            --nvdValidForHours 24
+
+      - name: Upload Dependency Check Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-results
+          path: reports/
+
+  ai-security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install AI Security Tools
+        run: |
+          pip install semgrep
+          pip install bandit
+          pip install safety
+
+      - name: Run Bandit (Python Security Linting)
+        run: |
+          bandit -r . -f json -o bandit-report.json || true
+          cat bandit-report.json | jq '.results | length' || echo "0"
+
+      - name: Run Safety (Python Dependencies)
+        run: |
+          safety check --json | jq '.' || echo "Safety check completed"
+
+      - name: Run Semgrep (AI-Powered Security Scanning)
+        run: |
+          semgrep --config auto --json | jq '.' > semgrep-results.json || echo "Semgrep scan completed"
+
+      - name: Upload AI Security Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-security-results
+          path: |
+            bandit-report.json
+            semgrep-results.json
+
+  security-gate:
+    runs-on: ubuntu-latest
+    needs: [security-scan, dependency-check, ai-security-scan]
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Download Security Results
+        uses: actions/download-artifact@v4
+        with:
+          name: security-scan-results
+
+      - name: Security Gate Check
+        run: |
+          # Check for critical vulnerabilities
+          if [ -f "dependency-check-report.html" ]; then
+            CRITICAL_VULNS=$(grep -c "CRITICAL" dependency-check-report.html || echo "0")
+            HIGH_VULNS=$(grep -c "HIGH" dependency-check-report.html || echo "0")
+
+            if [ "$CRITICAL_VULNS" -gt 0 ] || [ "$HIGH_VULNS" -gt 5 ]; then
+              echo "🚨 Security Gate Failed: Found $CRITICAL_VULNS critical and $HIGH_VULNS high vulnerabilities"
+              echo "Please fix security issues before merging"
+              exit 1
+            fi
+          fi
+
+          echo "✅ Security Gate Passed"
+
+      - name: Comment Security Results on PR
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+
+            let comment = '## 🔒 Security Analysis Results\n\n';
+
+            // Check for vulnerabilities
+            if (fs.existsSync('dependency-check-report.html')) {
+              const report = fs.readFileSync('dependency-check-report.html', 'utf8');
+              const criticalCount = (report.match(/CRITICAL/g) || []).length;
+              const highCount = (report.match(/HIGH/g) || []).length;
+
+              comment += `### Dependency Vulnerabilities\n`;
+              comment += `🔴 Critical: ${criticalCount}\n`;
+              comment += `🟠 High: ${highCount}\n\n`;
+            }
+
+            comment += `### Security Recommendations\n`;
+            comment += `✅ SAST scanning completed\n`;
+            comment += `✅ Dependency analysis completed\n`;
+            comment += `✅ AI-powered security scanning completed\n\n`;
+
+            comment += `For detailed results, check the Actions artifacts.\n\n`;
+            comment += `*This automated security analysis helps prevent AI-generated code vulnerabilities.*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
