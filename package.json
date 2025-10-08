@@ -1,0 +1,73 @@
+{
+  "name": "cosmos-predict-ai",
+  "version": "1.0.0",
+  "description": "Advanced AI Influencer Assistant with video generation capabilities for veterans and content creators",
+  "main": "index.js",
+  "scripts": {
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "start": "react-native start",
+    "test": "jest",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "build": "react-native bundle --platform android --dev false --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle",
+    "web": "expo start --web",
+    "deploy": "npm run build && echo 'Ready for DigitalOcean deployment'"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-native": "0.72.6",
+    "react-native-gifted-chat": "^2.4.0",
+    "@react-native-async-storage/async-storage": "^1.19.3",
+    "openai": "^4.14.2",
+    "expo-speech": "^11.3.0",
+    "react-native-vector-icons": "^10.0.0",
+    "react-native-gesture-handler": "^2.13.1",
+    "react-native-reanimated": "^3.5.4",
+    "react-native-safe-area-context": "^4.7.4",
+    "react-native-screens": "^3.25.0",
+    "@react-navigation/native": "^6.1.8",
+    "@react-navigation/stack": "^6.3.18",
+    "expo": "~49.0.15",
+    "expo-status-bar": "~1.6.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0",
+    "@babel/preset-env": "^7.20.0",
+    "@babel/runtime": "^7.20.0",
+    "@react-native/eslint-config": "^0.72.2",
+    "@react-native/metro-config": "^0.72.11",
+    "@tsconfig/react-native": "^3.0.0",
+    "@types/react": "^18.0.24",
+    "@types/react-test-renderer": "^18.0.0",
+    "babel-jest": "^29.2.1",
+    "eslint": "^8.19.0",
+    "jest": "^29.2.1",
+    "metro-react-native-babel-preset": "0.76.8",
+    "prettier": "^2.4.1",
+    "react-test-renderer": "18.2.0",
+    "typescript": "4.8.4"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": [
+    "ai",
+    "influencer",
+    "react-native",
+    "video-generation",
+    "veteran-support",
+    "chatbot",
+    "content-creation",
+    "digitalocean"
+  ],
+  "author": "Cosmos Predict AI Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/cosmos-predict-ai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/cosmos-predict-ai/issues"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/cosmos-predict-ai#readme"
+}
