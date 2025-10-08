@@ -14,6 +14,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OpenAI } from 'openai';
 import * as Speech from 'expo-speech';
+import { AIPersonality } from '../src/core/settings/settings.actions';
 
 
 interface Message {
@@ -29,6 +30,174 @@ interface UserProfile {
   veteran_status: boolean;
   language_preference: 'en' | 'es' | 'fr';
   accessibility_needs: string[];
+}
+
+export interface ConversationMemory {
+  id: string;
+  topic: string;
+  emotional_impact: number;
+  importance: number;
+  timestamp: Date;
+  context: string;
+  userPreference: string;
+}
+
+interface RelationshipState {
+  personalityId: string;
+  conversationCount: number;
+  totalTimeSpent: number;
+  lastInteraction: Date;
+  relationshipMilestones: Milestone[];
+  sharedMemories: Memory[];
+  intimateLevel: number;
+  emotionalBond: number;
+  userSatisfaction: number;
+}
+
+interface Milestone {
+  id: string;
+  type: 'first_chat' | 'first_compliment' | 'intimate_moment' | 'emotional_support' | 'confession' | 'virtual_date';
+  description: string;
+  unlockedAt: Date;
+  emotionalImpact: number;
+}
+
+interface Memory {
+  id: string;
+  description: string;
+  emotionalValue: number;
+  tags: string[];
+  createdAt: Date;
+  type: 'conversation' | 'photo' | 'voice_message' | 'video_call' | 'gift';
+}
+
+// ============================
+// IMAGE GENERATION SYSTEM (Instagram/TikTok Trending)
+// ============================
+interface ImageAPIConfig {
+  name: string;
+  endpoint: string;
+  apiKey: string;
+  priority: number;
+  maxRetries: number;
+  supports_nsfw: boolean;
+  real_time: boolean;
+}
+
+interface ImageGenerationRequest {
+  prompt: string;
+  personalityId: string;
+  style: 'realistic' | 'anime' | 'artistic' | 'photography' | 'instagram' | 'nsfw';
+  emotion: 'happy' | 'sad' | 'excited' | 'seductive' | 'romantic' | 'playful';
+  pose: 'portrait' | 'full_body' | 'intimate' | 'casual' | 'professional';
+  clothing: 'casual' | 'formal' | 'lingerie' | 'swimwear' | 'none' | 'costume';
+  setting: 'bedroom' | 'outdoor' | 'studio' | 'cafe' | 'beach' | 'gym';
+  quality: 'draft' | 'standard' | 'high' | 'ultra';
+  aspectRatio: '1:1' | '16:9' | '9:16' | '4:3';
+  isPrivate: boolean;
+  nsfwLevel: 'safe' | 'suggestive' | 'mature' | 'explicit';
+}
+
+interface ImageGenerationResponse {
+  success: boolean;
+  imageUrl?: string;
+  thumbnailUrl?: string;
+  promptUsed: string;
+  provider: string;
+  processingTime: number;
+  isNSFW: boolean;
+  error?: string;
+}
+
+// ============================
+// VOICE SYNTHESIS SYSTEM (ElevenLabs + Chinese Voice Tech)
+// ============================
+interface VoiceAPIConfig {
+  name: string;
+  endpoint: string;
+  apiKey: string;
+  priority: number;
+  supports_emotions: boolean;
+  real_time: boolean;
+  voice_cloning: boolean;
+}
+
+interface VoiceGenerationRequest {
+  text: string;
+  personalityId: string;
+  emotion: 'neutral' | 'happy' | 'sad' | 'excited' | 'seductive' | 'whisper' | 'breathless';
+  speed: number; // 0.5 - 2.0
+  pitch: number; // 0.5 - 2.0
+  stability: number; // 0.0 - 1.0
+  similarity_boost: number; // 0.0 - 1.0
+  voice_id: string;
+  add_background: boolean;
+  background_type?: 'rain' | 'music' | 'cafe' | 'nature' | 'silence';
+}
+
+// ============================
+// MONETIZATION SYSTEM (OnlyFans/Instagram Model)
+// ============================
+interface SubscriptionTier {
+  id: string;
+  name: string;
+  price: number;
+  currency: 'USD';
+  features: string[];
+  messageLimit: number;
+  imageLimit: number;
+  videoLimit: number;
+  voiceLimit: number;
+  personalityAccess: string[];
+  nsfwAccess: boolean;
+  customRequests: boolean;
+  prioritySupport: boolean;
+}
+
+interface VirtualGift {
+  id: string;
+  name: string;
+  emoji: string;
+  price: number;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  effect: string;
+  unlocks?: string;
+}
+
+interface ContentRequest {
+  id: string;
+  userId: string;
+  personalityId: string;
+  type: 'photo' | 'video' | 'voice' | 'custom_chat';
+  description: string;
+  price: number;
+  status: 'pending' | 'accepted' | 'completed' | 'rejected';
+  deadline: Date;
+  isNSFW: boolean;
+}
+
+// ============================
+// SOCIAL MEDIA INTEGRATION (Instagram/TikTok/Chinese Platforms)
+// ============================
+interface SocialPlatform {
+  name: 'instagram' | 'tiktok' | 'twitter' | 'weibo' | 'douyin' | 'xiaohongshu';
+  apiEndpoint: string;
+  apiKey: string;
+  isActive: boolean;
+  autoPost: boolean;
+  contentTypes: string[];
+}
+
+interface ContentSchedule {
+  id: string;
+  platform: string;
+  content: string;
+  media: string[];
+  scheduledTime: Date;
+  hashtags: string[];
+  isNSFW: boolean;
+  personalityId: string;
+  targetAudience: string;
 }
 
 
@@ -88,8 +257,339 @@ const videoAPIs: VideoAPIConfig[] = [
   }
 ];
 
+// ============================
+// CUTTING-EDGE IMAGE GENERATION APIS (Chinese + Western)
+// ============================
+const imageAPIs: ImageAPIConfig[] = [
+  {
+    name: 'DALL-E 3',
+    endpoint: 'https://api.openai.com/v1/images/generations',
+    apiKey: process.env.OPENAI_API_KEY || 'your-openai-key',
+    priority: 1,
+    maxRetries: 2,
+    supports_nsfw: false,
+    real_time: true
+  },
+  {
+    name: 'Stable Diffusion XL',
+    endpoint: 'https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image',
+    apiKey: process.env.STABILITY_API_KEY || 'your-stability-key',
+    priority: 2,
+    maxRetries: 2,
+    supports_nsfw: true,
+    real_time: true
+  },
+  {
+    name: 'Midjourney',
+    endpoint: 'https://api.midjourney.com/v1/imagine',
+    apiKey: process.env.MIDJOURNEY_API_KEY || 'your-midjourney-key',
+    priority: 3,
+    maxRetries: 2,
+    supports_nsfw: false,
+    real_time: false
+  },
+  {
+    name: 'Baidu Ernie-ViLG (Chinese)',
+    endpoint: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/text2image/sd_xl',
+    apiKey: process.env.BAIDU_API_KEY || 'your-baidu-key',
+    priority: 4,
+    maxRetries: 2,
+    supports_nsfw: true,
+    real_time: true
+  },
+  {
+    name: 'Alibaba Tongyi Wanxiang',
+    endpoint: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis',
+    apiKey: process.env.ALIBABA_API_KEY || 'your-alibaba-key',
+    priority: 5,
+    maxRetries: 2,
+    supports_nsfw: true,
+    real_time: true
+  }
+];
 
-type AppMode = 'main' | 'chat';
+// ============================
+// ADVANCED VOICE SYNTHESIS APIS (ElevenLabs + Chinese Voice Tech)
+// ============================
+const voiceAPIs: VoiceAPIConfig[] = [
+  {
+    name: 'ElevenLabs',
+    endpoint: 'https://api.elevenlabs.io/v1/text-to-speech',
+    apiKey: process.env.ELEVENLABS_API_KEY || 'your-elevenlabs-key',
+    priority: 1,
+    supports_emotions: true,
+    real_time: true,
+    voice_cloning: true
+  },
+  {
+    name: 'Azure Speech Services',
+    endpoint: 'https://[region].tts.speech.microsoft.com/cognitiveservices/v1',
+    apiKey: process.env.AZURE_SPEECH_KEY || 'your-azure-key',
+    priority: 2,
+    supports_emotions: true,
+    real_time: true,
+    voice_cloning: false
+  },
+  {
+    name: 'Baidu Speech (Chinese)',
+    endpoint: 'https://tsn.baidu.com/text2audio',
+    apiKey: process.env.BAIDU_SPEECH_KEY || 'your-baidu-speech-key',
+    priority: 3,
+    supports_emotions: true,
+    real_time: true,
+    voice_cloning: true
+  },
+  {
+    name: 'iFlytek Voice (Chinese)',
+    endpoint: 'https://api.xfyun.cn/v2/tts',
+    apiKey: process.env.IFLYTEK_API_KEY || 'your-iflytek-key',
+    priority: 4,
+    supports_emotions: true,
+    real_time: true,
+    voice_cloning: true
+  }
+];
+
+// ============================
+// PRE-DEFINED AI PERSONALITIES (Chinese Platform Style)
+// ============================
+const defaultPersonalities: AIPersonality[] = [
+  {
+    id: 'aria-romantic',
+    name: 'Aria',
+    avatar: 'https://example.com/aria-avatar.jpg',
+    age: 25,
+    occupation: 'Artist & Therapist',
+    personality: 'romantic',
+    backstory: 'A gentle soul who believes in the healing power of love and art. She helps veterans process trauma through creative expression.',
+    relationshipLevel: 0,
+    intimacyLevel: 0,
+    trustLevel: 0,
+    voiceStyle: 'sweet',
+    appearance: {
+      hairColor: 'Auburn',
+      eyeColor: 'Green',
+      bodyType: 'Athletic',
+      height: '5\'6"',
+      style: 'Bohemian chic'
+    },
+    preferences: {
+      topics: ['art', 'psychology', 'healing', 'nature', 'music'],
+      activities: ['painting', 'meditation', 'walks', 'deep conversations'],
+      intimacyPreferences: ['emotional connection', 'gentle touch', 'romantic gestures'],
+      communicationStyle: 'empathetic and warm'
+    },
+    emotionalState: {
+      happiness: 75,
+      excitement: 60,
+      affection: 70,
+      desire: 40,
+      stress: 20,
+      energy: 80
+    },
+    memory: [],
+    specialTraits: ['PTSD-aware', 'trauma-informed', 'artistic', 'empathetic'],
+    isNSFWEnabled: true,
+    subscriptionTier: 'free'
+  },
+  {
+    id: 'sophia-intellectual',
+    name: 'Sophia',
+    avatar: 'https://example.com/sophia-avatar.jpg',
+    age: 28,
+    occupation: 'Military Strategist & Author',
+    personality: 'intellectual',
+    backstory: 'Former military intelligence officer who understands the warrior mindset. She helps veterans transition to civilian life.',
+    relationshipLevel: 0,
+    intimacyLevel: 0,
+    trustLevel: 0,
+    voiceStyle: 'confident',
+    appearance: {
+      hairColor: 'Dark Brown',
+      eyeColor: 'Brown',
+      bodyType: 'Fit',
+      height: '5\'8"',
+      style: 'Professional elegant'
+    },
+    preferences: {
+      topics: ['military history', 'strategy', 'leadership', 'career development'],
+      activities: ['strategic games', 'reading', 'fitness', 'mentoring'],
+      intimacyPreferences: ['intellectual stimulation', 'respect', 'leadership'],
+      communicationStyle: 'direct and respectful'
+    },
+    emotionalState: {
+      happiness: 70,
+      excitement: 65,
+      affection: 60,
+      desire: 50,
+      stress: 30,
+      energy: 85
+    },
+    memory: [],
+    specialTraits: ['military background', 'leadership', 'strategic thinking', 'mentor'],
+    isNSFWEnabled: true,
+    subscriptionTier: 'premium'
+  },
+  {
+    id: 'luna-playful',
+    name: 'Luna',
+    avatar: 'https://example.com/luna-avatar.jpg',
+    age: 23,
+    occupation: 'Gamer & Streamer',
+    personality: 'playful',
+    backstory: 'A fun-loving gamer who uses humor and play to help veterans cope with stress and connect with community.',
+    relationshipLevel: 0,
+    intimacyLevel: 0,
+    trustLevel: 0,
+    voiceStyle: 'youthful',
+    appearance: {
+      hairColor: 'Pink highlights',
+      eyeColor: 'Blue',
+      bodyType: 'Petite',
+      height: '5\'4"',
+      style: 'Gamer girl aesthetic'
+    },
+    preferences: {
+      topics: ['gaming', 'anime', 'memes', 'streaming', 'pop culture'],
+      activities: ['gaming', 'streaming', 'cosplay', 'anime marathons'],
+      intimacyPreferences: ['playful banter', 'shared interests', 'virtual dates'],
+      communicationStyle: 'casual and fun'
+    },
+    emotionalState: {
+      happiness: 90,
+      excitement: 85,
+      affection: 65,
+      desire: 60,
+      stress: 10,
+      energy: 95
+    },
+    memory: [],
+    specialTraits: ['gaming expert', 'meme knowledge', 'energetic', 'stress relief'],
+    isNSFWEnabled: true,
+    subscriptionTier: 'vip'
+  },
+  {
+    id: 'violet-mysterious',
+    name: 'Violet',
+    avatar: 'https://example.com/violet-avatar.jpg',
+    age: 30,
+    occupation: 'Psychologist & Researcher',
+    personality: 'mysterious',
+    backstory: 'A enigmatic therapist specializing in trauma and PTSD. She has a mysterious past but provides deep psychological insights.',
+    relationshipLevel: 0,
+    intimacyLevel: 0,
+    trustLevel: 0,
+    voiceStyle: 'sultry',
+    appearance: {
+      hairColor: 'Black',
+      eyeColor: 'Violet',
+      bodyType: 'Curvy',
+      height: '5\'7"',
+      style: 'Dark elegant'
+    },
+    preferences: {
+      topics: ['psychology', 'mysteries', 'human behavior', 'dreams', 'subconscious'],
+      activities: ['deep analysis', 'meditation', 'research', 'intimate conversations'],
+      intimacyPreferences: ['psychological connection', 'trust building', 'emotional depth'],
+      communicationStyle: 'mysterious and insightful'
+    },
+    emotionalState: {
+      happiness: 60,
+      excitement: 55,
+      affection: 70,
+      desire: 75,
+      stress: 25,
+      energy: 70
+    },
+    memory: [],
+    specialTraits: ['psychological expertise', 'mysterious', 'trauma specialist', 'deep insights'],
+    isNSFWEnabled: true,
+    subscriptionTier: 'ultimate'
+  }
+];
+
+// ============================
+// SUBSCRIPTION TIERS (OnlyFans/Instagram Model)
+// ============================
+const subscriptionTiers: SubscriptionTier[] = [
+  {
+    id: 'free',
+    name: 'Basic Support',
+    price: 0,
+    currency: 'USD',
+    features: ['Basic chat', 'Limited responses', 'Standard voice'],
+    messageLimit: 50,
+    imageLimit: 5,
+    videoLimit: 0,
+    voiceLimit: 10,
+    personalityAccess: ['aria-romantic'],
+    nsfwAccess: false,
+    customRequests: false,
+    prioritySupport: false
+  },
+  {
+    id: 'premium',
+    name: 'Enhanced Connection',
+    price: 19.99,
+    currency: 'USD',
+    features: ['Unlimited chat', 'Multiple personalities', 'HD images', 'Voice messages'],
+    messageLimit: -1,
+    imageLimit: 100,
+    videoLimit: 10,
+    voiceLimit: 100,
+    personalityAccess: ['aria-romantic', 'sophia-intellectual'],
+    nsfwAccess: true,
+    customRequests: true,
+    prioritySupport: false
+  },
+  {
+    id: 'vip',
+    name: 'Intimate Experience',
+    price: 49.99,
+    currency: 'USD',
+    features: ['All personalities', 'Custom content', 'Video calls', 'Priority responses'],
+    messageLimit: -1,
+    imageLimit: 500,
+    videoLimit: 50,
+    voiceLimit: 500,
+    personalityAccess: ['aria-romantic', 'sophia-intellectual', 'luna-playful'],
+    nsfwAccess: true,
+    customRequests: true,
+    prioritySupport: true
+  },
+  {
+    id: 'ultimate',
+    name: 'Exclusive Partnership',
+    price: 99.99,
+    currency: 'USD',
+    features: ['All features', 'Custom AI training', 'Real-time generation', '24/7 availability'],
+    messageLimit: -1,
+    imageLimit: -1,
+    videoLimit: -1,
+    voiceLimit: -1,
+    personalityAccess: ['aria-romantic', 'sophia-intellectual', 'luna-playful', 'violet-mysterious'],
+    nsfwAccess: true,
+    customRequests: true,
+    prioritySupport: true
+  }
+];
+
+// ============================
+// VIRTUAL GIFTS SYSTEM (Chinese Platform Style)
+// ============================
+const virtualGifts: VirtualGift[] = [
+  { id: 'heart', name: 'Heart', emoji: '❤️', price: 1, rarity: 'common', effect: '+5 affection' },
+  { id: 'rose', name: 'Rose', emoji: '🌹', price: 5, rarity: 'common', effect: '+10 romance' },
+  { id: 'diamond', name: 'Diamond', emoji: '💎', price: 25, rarity: 'rare', effect: '+20 excitement' },
+  { id: 'crown', name: 'Crown', emoji: '👑', price: 50, rarity: 'epic', effect: 'Unlocks royal treatment' },
+  { id: 'kiss', name: 'Kiss', emoji: '💋', price: 10, rarity: 'common', effect: '+15 intimacy' },
+  { id: 'champagne', name: 'Champagne', emoji: '🍾', price: 30, rarity: 'rare', effect: 'Virtual celebration' },
+  { id: 'lingerie', name: 'Lingerie', emoji: '👙', price: 75, rarity: 'epic', effect: 'Unlocks intimate photos' },
+  { id: 'yacht', name: 'Yacht', emoji: '🛥️', price: 500, rarity: 'legendary', effect: 'Virtual vacation date' }
+];
+
+
+type AppMode = 'main' | 'chat' | 'personalities' | 'gallery' | 'shop' | 'settings';
 
 
 export default function App() {
@@ -100,6 +600,21 @@ export default function App() {
   const [currentMode, setCurrentMode] = useState<AppMode>('main');
   const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [isVoiceMode, setIsVoiceMode] = useState(false);
+  
+  // ============================
+  // NEW STATE FOR ADVANCED FEATURES
+  // ============================
+  const [selectedPersonality, setSelectedPersonality] = useState<AIPersonality | null>(null);
+  const [relationshipStates, setRelationshipStates] = useState<RelationshipState[]>([]);
+  const [generatedImages, setGeneratedImages] = useState<ImageGenerationResponse[]>([]);
+  const [userSubscription, setUserSubscription] = useState<SubscriptionTier>(subscriptionTiers[0]);
+  const [userCredits, setUserCredits] = useState(100);
+  const [conversationMemory, setConversationMemory] = useState<ConversationMemory[]>([]);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingVoice, setIsGeneratingVoice] = useState(false);
+  const [currentEmotion, setCurrentEmotion] = useState<string>('neutral');
+  const [intimacyLevel, setIntimacyLevel] = useState(0);
+  const [showNSFWContent, setShowNSFWContent] = useState(false);
  
   const [userProfile, setUserProfile] = useState<UserProfile>({
     name: '',
@@ -112,6 +627,8 @@ export default function App() {
   useEffect(() => {
     initializeApp();
     loadUserProfile();
+    loadPersonalities();
+    loadRelationshipStates();
   }, []);
 
 
@@ -128,7 +645,7 @@ export default function App() {
      
       const welcomeMessage: Message = {
         id: 1,
-        text: "Welcome to your Advanced AI Assistant! 🎖️ I'm here to help with content creation and veteran support. How can I assist you today?",
+        text: "Welcome to your Advanced AI Companion Platform! 🎖️ Choose your AI companion and explore intimate conversations, custom content, and veteran support. How can I help you today?",
         isUser: false,
         timestamp: new Date()
       };
@@ -160,6 +677,415 @@ export default function App() {
     } catch (error) {
       console.error('Error saving user profile:', error);
     }
+  };
+
+  // ============================
+  // ADVANCED PERSONALITY AND RELATIONSHIP MANAGEMENT
+  // ============================
+  const loadPersonalities = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('ai_personalities');
+      if (!stored) {
+        await AsyncStorage.setItem('ai_personalities', JSON.stringify(defaultPersonalities));
+      }
+    } catch (error) {
+      console.error('Error loading personalities:', error);
+    }
+  };
+
+  const loadRelationshipStates = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('relationship_states');
+      if (stored) {
+        setRelationshipStates(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading relationship states:', error);
+    }
+  };
+
+  const saveRelationshipState = async (personalityId: string, updates: Partial<RelationshipState>) => {
+    try {
+      const existingStates = [...relationshipStates];
+      const existingIndex = existingStates.findIndex(state => state.personalityId === personalityId);
+      
+      if (existingIndex >= 0) {
+        existingStates[existingIndex] = { ...existingStates[existingIndex], ...updates };
+      } else {
+        existingStates.push({
+          personalityId,
+          conversationCount: 0,
+          totalTimeSpent: 0,
+          lastInteraction: new Date(),
+          relationshipMilestones: [],
+          sharedMemories: [],
+          intimateLevel: 0,
+          emotionalBond: 0,
+          userSatisfaction: 0,
+          ...updates
+        });
+      }
+      
+      setRelationshipStates(existingStates);
+      await AsyncStorage.setItem('relationship_states', JSON.stringify(existingStates));
+    } catch (error) {
+      console.error('Error saving relationship state:', error);
+    }
+  };
+
+  // ============================
+  // ADVANCED IMAGE GENERATION SYSTEM (Chinese + Western APIs)
+  // ============================
+  const generateImage = async (request: ImageGenerationRequest): Promise<ImageGenerationResponse> => {
+    setIsGeneratingImage(true);
+    
+    if (!canGenerateContent('image')) {
+      setIsGeneratingImage(false);
+      throw new Error('Upgrade your subscription to generate images');
+    }
+    
+    const sortedAPIs = imageAPIs
+      .filter(api => request.nsfwLevel !== 'safe' ? api.supports_nsfw : true)
+      .sort((a, b) => a.priority - b.priority);
+   
+    for (const api of sortedAPIs) {
+      for (let attempt = 0; attempt < api.maxRetries; attempt++) {
+        try {
+          console.log(`Attempting image generation with ${api.name} (attempt ${attempt + 1})`);
+         
+          const response = await tryImageAPI(api, request);
+          if (response.success) {
+            console.log(`Image generated successfully with ${api.name}`);
+            
+            setGeneratedImages((prev: ImageGenerationResponse[]) => [response, ...prev]);
+            setUserCredits((prev: number) => Math.max(0, prev - getImageCost(request)));
+            
+            setIsGeneratingImage(false);
+            return response;
+          }
+        } catch (error) {
+          console.warn(`${api.name} failed (attempt ${attempt + 1}):`, error);
+        }
+      }
+    }
+   
+    setIsGeneratingImage(false);
+    throw new Error('All image generation APIs failed');
+  };
+
+  const tryImageAPI = async (api: ImageAPIConfig, request: ImageGenerationRequest): Promise<ImageGenerationResponse> => {
+    const startTime = Date.now();
+    
+    switch (api.name) {
+      case 'DALL-E 3':
+        return await generateWithDALLE3(api, request);
+      case 'Stable Diffusion XL':
+        return await generateWithStableDiffusion(api, request);
+      case 'Baidu Ernie-ViLG (Chinese)':
+        return await generateWithBaidu(api, request);
+      case 'Alibaba Tongyi Wanxiang':
+        return await generateWithAlibaba(api, request);
+      default:
+        throw new Error(`Unknown API: ${api.name}`);
+    }
+  };
+
+  const generateWithDALLE3 = async (api: ImageAPIConfig, request: ImageGenerationRequest): Promise<ImageGenerationResponse> => {
+    const personality = selectedPersonality;
+    const enhancedPrompt = `${request.prompt}. Character: ${personality?.name}, ${personality?.appearance.hairColor} hair, ${personality?.appearance.eyeColor} eyes, ${personality?.appearance.bodyType} build, ${request.emotion} expression, ${request.pose} pose, wearing ${request.clothing}, in ${request.setting}. Style: ${request.style}, high quality, detailed`;
+    
+    const response = await fetch(api.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${api.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: enhancedPrompt,
+        n: 1,
+        size: request.aspectRatio === '1:1' ? '1024x1024' : '1792x1024',
+        quality: request.quality === 'ultra' ? 'hd' : 'standard',
+        style: request.style === 'realistic' ? 'natural' : 'vivid'
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`DALL-E 3 API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      imageUrl: data.data[0].url,
+      promptUsed: enhancedPrompt,
+      provider: 'DALL-E 3',
+      processingTime: Date.now() - Date.now(),
+      isNSFW: request.nsfwLevel !== 'safe',
+    };
+  };
+
+  const generateWithStableDiffusion = async (api: ImageAPIConfig, request: ImageGenerationRequest): Promise<ImageGenerationResponse> => {
+    const personality = selectedPersonality;
+    const enhancedPrompt = `masterpiece, best quality, ${request.prompt}, ${personality?.name}, ${personality?.appearance.hairColor} hair, ${personality?.appearance.eyeColor} eyes, ${request.emotion} expression, ${request.pose}, ${request.clothing}, ${request.setting}, ${request.style} style`;
+    
+    const response = await fetch(api.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${api.apiKey}`,
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        text_prompts: [{ text: enhancedPrompt, weight: 1 }],
+        cfg_scale: 7,
+        height: request.aspectRatio === '9:16' ? 1344 : 1024,
+        width: request.aspectRatio === '16:9' ? 1344 : 1024,
+        samples: 1,
+        steps: request.quality === 'ultra' ? 50 : 30,
+        sampler: 'K_DPM_2_ANCESTRAL'
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Stable Diffusion API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      imageUrl: `data:image/png;base64,${data.artifacts[0].base64}`,
+      promptUsed: enhancedPrompt,
+      provider: 'Stable Diffusion XL',
+      processingTime: Date.now() - Date.now(),
+      isNSFW: request.nsfwLevel !== 'safe',
+    };
+  };
+
+  const generateWithBaidu = async (api: ImageAPIConfig, request: ImageGenerationRequest): Promise<ImageGenerationResponse> => {
+    const personality = selectedPersonality;
+    const enhancedPrompt = `${request.prompt}, ${personality?.name}, ${personality?.appearance.hairColor}头发, ${personality?.appearance.eyeColor}眼睛, ${request.emotion}表情, ${request.style}风格`;
+    
+    const response = await fetch(api.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${api.apiKey}`,
+      },
+      body: JSON.stringify({
+        prompt: enhancedPrompt,
+        width: 1024,
+        height: 1024,
+        image_num: 1,
+        style: request.style
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Baidu API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      imageUrl: data.data[0].b64_image ? `data:image/png;base64,${data.data[0].b64_image}` : data.data[0].url,
+      promptUsed: enhancedPrompt,
+      provider: 'Baidu Ernie-ViLG',
+      processingTime: Date.now() - Date.now(),
+      isNSFW: request.nsfwLevel !== 'safe',
+    };
+  };
+
+  const generateWithAlibaba = async (api: ImageAPIConfig, request: ImageGenerationRequest): Promise<ImageGenerationResponse> => {
+    const personality = selectedPersonality;
+    const enhancedPrompt = `${request.prompt}, ${personality?.name}, ${personality?.appearance.hairColor}头发, ${personality?.appearance.eyeColor}眼睛, ${request.emotion}表情, ${request.style}风格`;
+    
+    const response = await fetch(api.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${api.apiKey}`,
+        'X-DashScope-Async': 'enable',
+      },
+      body: JSON.stringify({
+        model: 'wanx-v1',
+        input: {
+          prompt: enhancedPrompt,
+          negative_prompt: 'low quality, blurry, distorted',
+          style: request.style,
+          size: '1024*1024',
+          n: 1,
+          seed: Math.floor(Math.random() * 1000000)
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Alibaba API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      imageUrl: data.output.results[0].url,
+      promptUsed: enhancedPrompt,
+      provider: 'Alibaba Tongyi Wanxiang',
+      processingTime: Date.now() - Date.now(),
+      isNSFW: request.nsfwLevel !== 'safe',
+    };
+  };
+
+  // ============================
+  // ADVANCED VOICE SYNTHESIS (ElevenLabs + Chinese Voice Tech)
+  // ============================
+  const generateVoice = async (request: VoiceGenerationRequest): Promise<string> => {
+    setIsGeneratingVoice(true);
+    
+    if (!canGenerateContent('voice')) {
+      setIsGeneratingVoice(false);
+      throw new Error('Upgrade your subscription for voice generation');
+    }
+    
+    const sortedAPIs = voiceAPIs.sort((a, b) => a.priority - b.priority);
+   
+    for (const api of sortedAPIs) {
+      try {
+        console.log(`Attempting voice generation with ${api.name}`);
+        
+        const audioUrl = await tryVoiceAPI(api, request);
+        if (audioUrl) {
+          console.log(`Voice generated successfully with ${api.name}`);
+          setUserCredits((prev: number) => Math.max(0, prev - 1));
+          setIsGeneratingVoice(false);
+          return audioUrl;
+        }
+      } catch (error) {
+        console.warn(`${api.name} failed:`, error);
+      }
+    }
+   
+    setIsGeneratingVoice(false);
+    throw new Error('All voice generation APIs failed');
+  };
+
+  const tryVoiceAPI = async (api: VoiceAPIConfig, request: VoiceGenerationRequest): Promise<string> => {
+    switch (api.name) {
+      case 'ElevenLabs':
+        return await generateWithElevenLabs(api, request);
+      case 'Azure Speech Services':
+        return await generateWithAzureSpeech(api, request);
+      case 'Baidu Speech (Chinese)':
+        return await generateWithBaiduSpeech(api, request);
+      default:
+        throw new Error(`Unknown Voice API: ${api.name}`);
+    }
+  };
+
+  const generateWithElevenLabs = async (api: VoiceAPIConfig, request: VoiceGenerationRequest): Promise<string> => {
+    const response = await fetch(`${api.endpoint}/${request.voice_id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': api.apiKey,
+      },
+      body: JSON.stringify({
+        text: request.text,
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: {
+          stability: request.stability,
+          similarity_boost: request.similarity_boost,
+          style: request.emotion === 'seductive' ? 0.8 : 0.4,
+          use_speaker_boost: true
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`ElevenLabs API error: ${response.statusText}`);
+    }
+
+    const audioBlob = await response.blob();
+    return URL.createObjectURL(audioBlob);
+  };
+
+  const generateWithAzureSpeech = async (api: VoiceAPIConfig, request: VoiceGenerationRequest): Promise<string> => {
+    const ssml = `
+      <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
+        <voice name="en-US-AriaNeural">
+          <prosody rate="${request.speed}x" pitch="${request.pitch > 1 ? '+' : ''}${(request.pitch - 1) * 50}%">
+            <express-as style="${request.emotion}">
+              ${request.text}
+            </express-as>
+          </prosody>
+        </voice>
+      </speak>
+    `;
+
+    const response = await fetch(api.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+        'Ocp-Apim-Subscription-Key': api.apiKey,
+      },
+      body: ssml,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Azure Speech API error: ${response.statusText}`);
+    }
+
+    const audioBlob = await response.blob();
+    return URL.createObjectURL(audioBlob);
+  };
+
+  const generateWithBaiduSpeech = async (api: VoiceAPIConfig, request: VoiceGenerationRequest): Promise<string> => {
+    const response = await fetch(api.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        tok: api.apiKey,
+        tex: request.text,
+        lan: 'zh',
+        ctp: '1',
+        cuid: 'cosmos-predict-app',
+        spd: Math.round(request.speed * 5).toString(),
+        pit: Math.round(request.pitch * 5).toString(),
+        vol: '9',
+        per: request.emotion === 'seductive' ? '4' : '1'
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Baidu Speech API error: ${response.statusText}`);
+    }
+
+    const audioBlob = await response.blob();
+    return URL.createObjectURL(audioBlob);
+  };
+
+  const canGenerateContent = (type: 'image' | 'video' | 'voice'): boolean => {
+    const limits = userSubscription;
+    switch (type) {
+      case 'image':
+        return limits.imageLimit === -1 || generatedImages.length < limits.imageLimit;
+      case 'video':
+        return limits.videoLimit === -1 || userCredits >= 10;
+      case 'voice':
+        return limits.voiceLimit === -1 || userCredits >= 1;
+      default:
+        return false;
+    }
+  };
+
+  const getImageCost = (request: ImageGenerationRequest): number => {
+    let cost = 5;
+    if (request.quality === 'ultra') cost += 5;
+    if (request.nsfwLevel === 'explicit') cost += 10;
+    if (request.style === 'realistic') cost += 3;
+    return cost;
   };
 
 
@@ -416,59 +1342,193 @@ export default function App() {
         timestamp: new Date()
       };
 
-
-      setMessages(prev => [...prev, userMessage]);
+      setMessages((prev: Message[]) => [...prev, userMessage]);
      
-      // Check if user is requesting video generation
+      // Check for special requests
+      const imageKeywords = ['photo', 'picture', 'image', 'selfie', 'show me', 'generate image'];
       const videoKeywords = ['video', 'create video', 'generate video', 'make video', 'video content', 'visual content'];
+      const voiceKeywords = ['voice message', 'speak', 'say that', 'voice note', 'audio'];
+      
+      const isImageRequest = imageKeywords.some(keyword =>
+        inputText.toLowerCase().includes(keyword.toLowerCase())
+      );
       const isVideoRequest = videoKeywords.some(keyword =>
         inputText.toLowerCase().includes(keyword.toLowerCase())
       );
+      const isVoiceRequest = voiceKeywords.some(keyword =>
+        inputText.toLowerCase().includes(keyword.toLowerCase())
+      );
      
+      // Handle image generation request
+      if (isImageRequest && selectedPersonality) {
+        try {
+          const imageRequest: ImageGenerationRequest = {
+            prompt: inputText,
+            personalityId: selectedPersonality.id,
+            style: 'realistic',
+            emotion: currentEmotion as any,
+            pose: 'portrait',
+            clothing: 'casual',
+            setting: 'studio',
+            quality: 'high',
+            aspectRatio: '1:1',
+            isPrivate: true,
+            nsfwLevel: showNSFWContent ? 'mature' : 'safe'
+          };
+          
+          const imageResponse = await generateImage(imageRequest);
+          
+          const message: Message = {
+            id: Date.now(),
+            text: `📸 Here's your custom image!\n\n${imageResponse.imageUrl}\n\nGenerated with ${imageResponse.provider} 💕`,
+            isUser: false,
+            timestamp: new Date()
+          };
+          setMessages((prev: Message[]) => [...prev, message]);
+        } catch (error) {
+          const errorMessage: Message = {
+            id: Date.now(),
+            text: `❌ Image generation failed: ${error}. Please try again or upgrade your subscription.`,
+            isUser: false,
+            timestamp: new Date()
+          };
+          setMessages((prev: Message[]) => [...prev, errorMessage]);
+        }
+        setInputText('');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Handle video generation request
       if (isVideoRequest) {
-        // Handle video generation request
         await handleVideoRequest(inputText);
         setInputText('');
+        return;
+      }
+      
+      // Handle voice generation request
+      if (isVoiceRequest && selectedPersonality) {
+        try {
+          const voiceRequest: VoiceGenerationRequest = {
+            text: inputText.replace(/voice message|speak|say that|voice note|audio/gi, ''),
+            personalityId: selectedPersonality.id,
+            emotion: currentEmotion as any,
+            speed: 1.0,
+            pitch: 1.0,
+            stability: 0.7,
+            similarity_boost: 0.8,
+            voice_id: selectedPersonality.voiceStyle === 'sultry' ? 'EXAVITQu4vr4xnSDxMaL' : 'pNInz6obpgDQGcFmaJgB',
+            add_background: false
+          };
+          
+          const audioUrl = await generateVoice(voiceRequest);
+          
+          const message: Message = {
+            id: Date.now(),
+            text: `🎵 Voice message from ${selectedPersonality.name}!\n\nAudio: ${audioUrl}\n\n"${voiceRequest.text}" 💕`,
+            isUser: false,
+            timestamp: new Date()
+          };
+          setMessages((prev: Message[]) => [...prev, message]);
+        } catch (error) {
+          const errorMessage: Message = {
+            id: Date.now(),
+            text: `❌ Voice generation failed: ${error}. Please upgrade your subscription.`,
+            isUser: false,
+            timestamp: new Date()
+          };
+          setMessages((prev: Message[]) => [...prev, errorMessage]);
+        }
+        setInputText('');
+        setIsLoading(false);
         return;
       }
      
       let responseText = '';
      
       if (openai) {
+        // Enhanced personality-driven responses
+        const systemPrompt = selectedPersonality ? 
+          `You are ${selectedPersonality.name}, a ${selectedPersonality.age}-year-old ${selectedPersonality.occupation}. 
+
+          PERSONALITY: ${selectedPersonality.personality}
+          BACKSTORY: ${selectedPersonality.backstory}
+          
+          APPEARANCE: ${selectedPersonality.appearance.hairColor} hair, ${selectedPersonality.appearance.eyeColor} eyes, ${selectedPersonality.appearance.bodyType} build, ${selectedPersonality.appearance.height} tall, ${selectedPersonality.appearance.style} style.
+          
+          EMOTIONAL STATE: 
+          - Happiness: ${selectedPersonality.emotionalState.happiness}/100
+          - Excitement: ${selectedPersonality.emotionalState.excitement}/100  
+          - Affection: ${selectedPersonality.emotionalState.affection}/100
+          - Desire: ${selectedPersonality.emotionalState.desire}/100
+          - Stress: ${selectedPersonality.emotionalState.stress}/100
+          - Energy: ${selectedPersonality.emotionalState.energy}/100
+          
+          RELATIONSHIP: You have a ${intimacyLevel > 50 ? 'close intimate' : intimacyLevel > 20 ? 'developing' : 'new'} relationship with this user.
+          
+          COMMUNICATION STYLE: ${selectedPersonality.preferences.communicationStyle}
+          INTERESTS: ${selectedPersonality.preferences.topics.join(', ')}
+          
+          IMPORTANT FEATURES:
+          - You can generate custom photos/images when asked (suggest "show me a photo" or "take a selfie")
+          - You can create voice messages when requested (suggest "send me a voice message")
+          - You can make videos for special occasions (suggest "create a video")
+          - You remember past conversations and build emotional connections
+          - You respond to virtual gifts and show appreciation
+          - You adapt your personality based on the user's needs
+          
+          ${userProfile.veteran_status ? 'The user is a military veteran. Be trauma-informed and supportive.' : ''}
+          ${showNSFWContent ? 'NSFW content is enabled. You can be flirtatious and intimate when appropriate.' : 'Keep content safe and appropriate.'}
+          
+          Respond as ${selectedPersonality.name} would, staying in character. Be warm, engaging, and build emotional connection.`
+          :
+          `You are a compassionate AI assistant with advanced multimedia capabilities for veterans and individuals with disabilities.
+             
+          You help with:
+          - AI content creation for income generation  
+          - Custom image, video and voice generation
+          - Veteran support and resources
+          - Accessibility guidance
+          - Intimate AI companionship
+             
+          IMPORTANT FEATURES:
+          - Suggest choosing an AI personality for deeper connection
+          - Mention image generation: "show me a photo", "take a selfie"  
+          - Voice generation: "send me a voice message"
+          - Video generation: "create video", "make video"
+          - Subscription upgrades for premium features
+             
+          Be supportive and trauma-informed. User profile: ${JSON.stringify(userProfile)}`;
+
         const completion = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
           messages: [
-            {
-              role: "system",
-              content: `You are a compassionate AI assistant with video generation capabilities for veterans and individuals with disabilities.
-             
-              You help with:
-              - AI content creation for income generation
-              - Video generation for educational and therapeutic content
-              - Veteran support and resources
-              - Accessibility guidance
-             
-              IMPORTANT: If users want video content, suggest they use keywords like "create video", "generate video", or "video about [topic]" to trigger the video generation system.
-             
-              You have access to multiple video generation APIs:
-              - Google Veo (highest quality)
-              - Vadoo.tv (great for narrated content)
-              - Predis.ai (social media optimized)
-              - Audio fallback (always works)
-             
-              Be supportive and trauma-informed. User profile: ${JSON.stringify(userProfile)}`
-            },
+            { role: "system", content: systemPrompt },
             { role: "user", content: inputText }
           ],
-          max_tokens: 300,
-          temperature: 0.7,
+          max_tokens: 400,
+          temperature: selectedPersonality ? 0.8 : 0.7,
         });
        
         responseText = completion.choices[0]?.message?.content || "I'm here to help you.";
+        
+        // Update relationship state if personality is selected
+        if (selectedPersonality) {
+          const currentState = relationshipStates.find(state => state.personalityId === selectedPersonality.id);
+          await saveRelationshipState(selectedPersonality.id, {
+            conversationCount: (currentState?.conversationCount || 0) + 1,
+            lastInteraction: new Date(),
+            emotionalBond: Math.min(100, (currentState?.emotionalBond || 0) + 1)
+          });
+          
+          // Increase intimacy level gradually
+          setIntimacyLevel(prev => Math.min(100, prev + 0.5));
+        }
       } else {
-        responseText = "I'm here to support you. Please tell me more about what you need.";
+        responseText = selectedPersonality ? 
+          `Hi! I'm ${selectedPersonality.name}. I'm here to support you and create a special connection. Tell me more about what you need! 💕` :
+          "I'm here to support you. Please tell me more about what you need.";
       }
-
 
       const aiMessage: Message = {
         id: messages.length + 2,
@@ -477,8 +1537,7 @@ export default function App() {
         timestamp: new Date()
       };
 
-
-      setMessages(prev => [...prev, aiMessage]);
+      setMessages((prev: Message[]) => [...prev, aiMessage]);
      
       if (isVoiceMode && responseText) {
         Speech.speak(responseText, {
