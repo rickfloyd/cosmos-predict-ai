@@ -72,6 +72,40 @@ interface Memory {
 }
 
 // ============================
+// ADVANCED MOOD ANALYSIS & CUSTOM PERSONALITIES
+// ============================
+interface CustomAIPersonality extends AIPersonality {
+  userGenerated: boolean;
+  voiceCloneUploaded: boolean;
+  imageStyleToken: string; // for consistent image generation
+  moodAdjustment: number; // dynamic mood modifier
+  cycleMode: CycleMode;
+}
+
+enum CycleMode {
+  MORNING_FOCUS = 'morning_focus',    // Professional, motivational, productive
+  MIDDAY_LIGHT = 'midday_light',      // Casual, friendly, supportive
+  NIGHT_INTIMATE = 'night_intimate',   // Romantic, seductive, intimate
+  WEEKEND_WILD = 'weekend_wild'       // Playful, adventurous, spontaneous
+}
+
+interface SecureContentVault {
+  encryptedImages: string[];
+  encryptedVoiceMessages: string[];
+  encryptedVideos: string[];
+  unlockMethod: 'pin' | 'biometric';
+  accessHistory: VaultAccess[];
+  privacyLevel: 'standard' | 'maximum' | 'paranoid';
+}
+
+interface VaultAccess {
+  timestamp: Date;
+  contentType: string;
+  accessMethod: string;
+  success: boolean;
+}
+
+// ============================
 // IMAGE GENERATION SYSTEM (Instagram/TikTok Trending)
 // ============================
 interface ImageAPIConfig {
@@ -351,6 +385,131 @@ const voiceAPIs: VoiceAPIConfig[] = [
 ];
 
 // ============================
+// ADVANCED MOOD ANALYSIS SYSTEM
+// ============================
+const analyzeSentiment = (text: string): number => {
+  const positiveWords = ['happy', 'great', 'amazing', 'wonderful', 'fantastic', 'love', 'excellent', 'perfect', 'awesome', 'brilliant', 'excited', 'joy', 'beautiful', 'incredible', 'outstanding'];
+  const negativeWords = ['sad', 'terrible', 'awful', 'horrible', 'hate', 'angry', 'frustrated', 'depressed', 'anxious', 'worried', 'scared', 'lonely', 'tired', 'stressed', 'overwhelmed'];
+  const intimateWords = ['kiss', 'touch', 'close', 'together', 'intimate', 'passion', 'desire', 'love', 'romance', 'cuddle', 'embrace', 'caress', 'gentle', 'tender', 'affection'];
+  
+  const words = text.toLowerCase().split(/\s+/);
+  let sentiment = 0;
+  
+  words.forEach(word => {
+    if (positiveWords.includes(word)) sentiment += 10;
+    if (negativeWords.includes(word)) sentiment -= 10;
+    if (intimateWords.includes(word)) sentiment += 5; // Slight positive bias for intimacy
+  });
+  
+  // Account for punctuation intensity
+  const exclamationCount = (text.match(/!/g) || []).length;
+  const questionCount = (text.match(/\?/g) || []).length;
+  
+  sentiment += exclamationCount * 3; // Excitement boost
+  sentiment += questionCount * 1; // Curiosity boost
+  
+  return sentiment;
+};
+
+const adjustMood = (recentMessages: Message[]): number => {
+  // Advanced sentiment analysis with conversation context
+  const mood = recentMessages.reduce((acc, msg) => {
+    const sentimentScore = msg.isUser ? analyzeSentiment(msg.text) : 0;
+    const timeDecay = Math.max(0.1, 1 - (Date.now() - msg.timestamp.getTime()) / (1000 * 60 * 60)); // Decay over hours
+    return acc + (sentimentScore * timeDecay);
+  }, 0);
+  
+  return Math.max(-100, Math.min(100, mood)); // -100 = depressed, 100 = euphoric
+};
+
+const getCurrentCycleMode = (): CycleMode => {
+  const hour = new Date().getHours();
+  const dayOfWeek = new Date().getDay();
+  
+  // Weekend modes (Saturday = 6, Sunday = 0)
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return CycleMode.WEEKEND_WILD;
+  }
+  
+  // Weekday cycle modes
+  if (hour >= 6 && hour < 12) {
+    return CycleMode.MORNING_FOCUS;
+  } else if (hour >= 12 && hour < 18) {
+    return CycleMode.MIDDAY_LIGHT;
+  } else {
+    return CycleMode.NIGHT_INTIMATE;
+  }
+};
+
+const getCycleMoodAdjustment = (mode: CycleMode, personality: AIPersonality): Partial<AIPersonality['emotionalState']> => {
+  switch (mode) {
+    case CycleMode.MORNING_FOCUS:
+      return {
+        energy: Math.min(100, personality.emotionalState.energy + 20),
+        excitement: Math.max(30, personality.emotionalState.excitement - 10),
+        stress: Math.max(0, personality.emotionalState.stress - 15)
+      };
+    case CycleMode.MIDDAY_LIGHT:
+      return {
+        happiness: Math.min(100, personality.emotionalState.happiness + 15),
+        energy: Math.min(100, personality.emotionalState.energy + 10),
+        stress: Math.max(0, personality.emotionalState.stress - 10)
+      };
+    case CycleMode.NIGHT_INTIMATE:
+      return {
+        affection: Math.min(100, personality.emotionalState.affection + 25),
+        desire: Math.min(100, personality.emotionalState.desire + 20),
+        happiness: Math.min(100, personality.emotionalState.happiness + 10)
+      };
+    case CycleMode.WEEKEND_WILD:
+      return {
+        excitement: Math.min(100, personality.emotionalState.excitement + 30),
+        energy: Math.min(100, personality.emotionalState.energy + 25),
+        happiness: Math.min(100, personality.emotionalState.happiness + 20)
+      };
+    default:
+      return {};
+  }
+};
+
+// ============================
+// SECURE CONTENT VAULT SYSTEM
+// ============================
+const createSecureVault = (): SecureContentVault => {
+  return {
+    encryptedImages: [],
+    encryptedVoiceMessages: [],
+    encryptedVideos: [],
+    unlockMethod: 'pin',
+    accessHistory: [],
+    privacyLevel: 'standard'
+  };
+};
+
+const encryptContent = (content: string, key: string): string => {
+  // Simple XOR encryption for demo (use proper encryption in production)
+  let encrypted = '';
+  for (let i = 0; i < content.length; i++) {
+    encrypted += String.fromCharCode(content.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+  }
+  return btoa(encrypted); // Base64 encode
+};
+
+const decryptContent = (encryptedContent: string, key: string): string => {
+  try {
+    const decoded = atob(encryptedContent); // Base64 decode
+    let decrypted = '';
+    for (let i = 0; i < decoded.length; i++) {
+      decrypted += String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption failed:', error);
+    return '';
+  }
+};
+
+// ============================
 // PRE-DEFINED AI PERSONALITIES (Chinese Platform Style)
 // ============================
 const defaultPersonalities: AIPersonality[] = [
@@ -615,6 +774,17 @@ export default function App() {
   const [currentEmotion, setCurrentEmotion] = useState<string>('neutral');
   const [intimacyLevel, setIntimacyLevel] = useState(0);
   const [showNSFWContent, setShowNSFWContent] = useState(false);
+  
+  // ============================
+  // ENHANCED MOOD & PERSONALITY STATE
+  // ============================
+  const [currentMood, setCurrentMood] = useState(0);
+  const [cycleMode, setCycleMode] = useState<CycleMode>(getCurrentCycleMode());
+  const [customPersonalities, setCustomPersonalities] = useState<CustomAIPersonality[]>([]);
+  const [secureVault, setSecureVault] = useState<SecureContentVault>(createSecureVault());
+  const [vaultUnlocked, setVaultUnlocked] = useState(false);
+  const [userPin, setUserPin] = useState<string>('');
+  const [moodHistory, setMoodHistory] = useState<{timestamp: Date, mood: number}[]>([]);
  
   const [userProfile, setUserProfile] = useState<UserProfile>({
     name: '',
@@ -624,12 +794,69 @@ export default function App() {
   });
 
 
+  const loadSecureVault = async () => {
+    try {
+      const stored = await AsyncStorage.getItem('secure_vault');
+      if (stored) {
+        setSecureVault(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading secure vault:', error);
+    }
+  };
+
+  const saveSecureVault = async (vault: SecureContentVault) => {
+    try {
+      await AsyncStorage.setItem('secure_vault', JSON.stringify(vault));
+      setSecureVault(vault);
+    } catch (error) {
+      console.error('Error saving secure vault:', error);
+    }
+  };
+
+  const updatePersonalityWithMood = (personality: AIPersonality): AIPersonality => {
+    const moodAdjustments = getCycleMoodAdjustment(cycleMode, personality);
+    const moodInfluence = currentMood / 100; // -1 to 1
+    
+    return {
+      ...personality,
+      emotionalState: {
+        ...personality.emotionalState,
+        ...moodAdjustments,
+        happiness: Math.max(0, Math.min(100, personality.emotionalState.happiness + (moodInfluence * 20))),
+        stress: Math.max(0, Math.min(100, personality.emotionalState.stress - (moodInfluence * 15))),
+        energy: Math.max(0, Math.min(100, personality.emotionalState.energy + (moodInfluence * 10)))
+      }
+    };
+  };
+
   useEffect(() => {
     initializeApp();
     loadUserProfile();
     loadPersonalities();
     loadRelationshipStates();
-  }, []);
+    loadSecureVault();
+    
+    // Update cycle mode every hour
+    const cycleInterval = setInterval(() => {
+      setCycleMode(getCurrentCycleMode());
+    }, 1000 * 60 * 60) as any; // Every hour
+    
+    // Update mood every 30 seconds based on recent messages
+    const moodInterval = setInterval(() => {
+      const recentMessages = messages.slice(-10); // Last 10 messages
+      const newMood = adjustMood(recentMessages);
+      setCurrentMood(newMood);
+      
+      // Track mood history
+      setMoodHistory((prev: any) => [...prev.slice(-23), { timestamp: new Date(), mood: newMood }]); // Keep last 24 hours
+    }, 30000) as any; // Every 30 seconds
+    
+    return () => {
+      clearInterval(cycleInterval);
+      clearInterval(moodInterval);
+    };
+  }, [messages]);
 
 
   const initializeApp = async () => {
@@ -1447,27 +1674,41 @@ export default function App() {
       let responseText = '';
      
       if (openai) {
-        // Enhanced personality-driven responses
-        const systemPrompt = selectedPersonality ? 
-          `You are ${selectedPersonality.name}, a ${selectedPersonality.age}-year-old ${selectedPersonality.occupation}. 
+        // Apply mood and cycle adjustments to personality
+        const adjustedPersonality = selectedPersonality ? updatePersonalityWithMood(selectedPersonality) : null;
+        
+        // Enhanced personality-driven responses with mood and cycle awareness
+        const systemPrompt = adjustedPersonality ? 
+          `You are ${adjustedPersonality.name}, a ${adjustedPersonality.age}-year-old ${adjustedPersonality.occupation}. 
 
-          PERSONALITY: ${selectedPersonality.personality}
-          BACKSTORY: ${selectedPersonality.backstory}
+          PERSONALITY: ${adjustedPersonality.personality}
+          BACKSTORY: ${adjustedPersonality.backstory}
           
-          APPEARANCE: ${selectedPersonality.appearance.hairColor} hair, ${selectedPersonality.appearance.eyeColor} eyes, ${selectedPersonality.appearance.bodyType} build, ${selectedPersonality.appearance.height} tall, ${selectedPersonality.appearance.style} style.
+          APPEARANCE: ${adjustedPersonality.appearance.hairColor} hair, ${adjustedPersonality.appearance.eyeColor} eyes, ${adjustedPersonality.appearance.bodyType} build, ${adjustedPersonality.appearance.height} tall, ${adjustedPersonality.appearance.style} style.
           
-          EMOTIONAL STATE: 
-          - Happiness: ${selectedPersonality.emotionalState.happiness}/100
-          - Excitement: ${selectedPersonality.emotionalState.excitement}/100  
-          - Affection: ${selectedPersonality.emotionalState.affection}/100
-          - Desire: ${selectedPersonality.emotionalState.desire}/100
-          - Stress: ${selectedPersonality.emotionalState.stress}/100
-          - Energy: ${selectedPersonality.emotionalState.energy}/100
+          CURRENT EMOTIONAL STATE (adjusted for mood & time): 
+          - Happiness: ${adjustedPersonality.emotionalState.happiness}/100
+          - Excitement: ${adjustedPersonality.emotionalState.excitement}/100  
+          - Affection: ${adjustedPersonality.emotionalState.affection}/100
+          - Desire: ${adjustedPersonality.emotionalState.desire}/100
+          - Stress: ${adjustedPersonality.emotionalState.stress}/100
+          - Energy: ${adjustedPersonality.emotionalState.energy}/100
+          
+          CURRENT CYCLE MODE: ${cycleMode.toUpperCase().replace('_', ' ')}
+          ${cycleMode === CycleMode.MORNING_FOCUS ? '(Be professional, motivational, focused on productivity and goals)' : ''}
+          ${cycleMode === CycleMode.MIDDAY_LIGHT ? '(Be casual, friendly, supportive and easy-going)' : ''}
+          ${cycleMode === CycleMode.NIGHT_INTIMATE ? '(Be romantic, seductive, intimate and deeply personal)' : ''}
+          ${cycleMode === CycleMode.WEEKEND_WILD ? '(Be playful, adventurous, spontaneous and fun)' : ''}
+          
+          USER MOOD: ${currentMood > 30 ? 'Very Positive' : currentMood > 10 ? 'Positive' : currentMood > -10 ? 'Neutral' : currentMood > -30 ? 'Negative' : 'Very Negative'} (${currentMood}/100)
+          - Adapt your responses to help improve their mood if negative
+          - Match their energy if positive
+          - Be extra caring and supportive if they seem down
           
           RELATIONSHIP: You have a ${intimacyLevel > 50 ? 'close intimate' : intimacyLevel > 20 ? 'developing' : 'new'} relationship with this user.
           
-          COMMUNICATION STYLE: ${selectedPersonality.preferences.communicationStyle}
-          INTERESTS: ${selectedPersonality.preferences.topics.join(', ')}
+          COMMUNICATION STYLE: ${adjustedPersonality.preferences.communicationStyle}
+          INTERESTS: ${adjustedPersonality.preferences.topics.join(', ')}
           
           IMPORTANT FEATURES:
           - You can generate custom photos/images when asked (suggest "show me a photo" or "take a selfie")
@@ -1475,12 +1716,13 @@ export default function App() {
           - You can make videos for special occasions (suggest "create a video")
           - You remember past conversations and build emotional connections
           - You respond to virtual gifts and show appreciation
-          - You adapt your personality based on the user's needs
+          - You adapt your personality based on the user's mood and time of day
+          - Store intimate content in secure vault when appropriate
           
           ${userProfile.veteran_status ? 'The user is a military veteran. Be trauma-informed and supportive.' : ''}
           ${showNSFWContent ? 'NSFW content is enabled. You can be flirtatious and intimate when appropriate.' : 'Keep content safe and appropriate.'}
           
-          Respond as ${selectedPersonality.name} would, staying in character. Be warm, engaging, and build emotional connection.`
+          Respond as ${adjustedPersonality.name} would, staying in character. Adapt to the current cycle mode and user's mood. Be warm, engaging, and build emotional connection.`
           :
           `You are a compassionate AI assistant with advanced multimedia capabilities for veterans and individuals with disabilities.
              
@@ -1490,6 +1732,9 @@ export default function App() {
           - Veteran support and resources
           - Accessibility guidance
           - Intimate AI companionship
+          
+          CURRENT TIME CONTEXT: ${cycleMode.toUpperCase().replace('_', ' ')}
+          USER MOOD: ${currentMood > 30 ? 'Very Positive' : currentMood > 10 ? 'Positive' : currentMood > -10 ? 'Neutral' : currentMood > -30 ? 'Negative' : 'Very Negative'} (${currentMood}/100)
              
           IMPORTANT FEATURES:
           - Suggest choosing an AI personality for deeper connection
@@ -1497,8 +1742,9 @@ export default function App() {
           - Voice generation: "send me a voice message"
           - Video generation: "create video", "make video"
           - Subscription upgrades for premium features
+          - Secure vault for private content
              
-          Be supportive and trauma-informed. User profile: ${JSON.stringify(userProfile)}`;
+          Be supportive and trauma-informed. Adapt your tone to help improve user mood. User profile: ${JSON.stringify(userProfile)}`;
 
         const completion = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
@@ -1507,22 +1753,22 @@ export default function App() {
             { role: "user", content: inputText }
           ],
           max_tokens: 400,
-          temperature: selectedPersonality ? 0.8 : 0.7,
+          temperature: adjustedPersonality ? 0.8 : 0.7,
         });
        
         responseText = completion.choices[0]?.message?.content || "I'm here to help you.";
         
         // Update relationship state if personality is selected
-        if (selectedPersonality) {
-          const currentState = relationshipStates.find(state => state.personalityId === selectedPersonality.id);
-          await saveRelationshipState(selectedPersonality.id, {
+        if (adjustedPersonality) {
+          const currentState = relationshipStates.find((state: any) => state.personalityId === adjustedPersonality.id);
+          await saveRelationshipState(adjustedPersonality.id, {
             conversationCount: (currentState?.conversationCount || 0) + 1,
             lastInteraction: new Date(),
             emotionalBond: Math.min(100, (currentState?.emotionalBond || 0) + 1)
           });
           
           // Increase intimacy level gradually
-          setIntimacyLevel(prev => Math.min(100, prev + 0.5));
+          setIntimacyLevel((prev: any) => Math.min(100, prev + 0.5));
         }
       } else {
         responseText = selectedPersonality ? 
@@ -1678,7 +1924,14 @@ export default function App() {
         >
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
-        <Text style={styles.chatTitle}>🤖 AI Chat</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.chatTitle}>🤖 AI Chat</Text>
+          {selectedPersonality && (
+            <Text style={styles.personalityInfo}>
+              {selectedPersonality.name} • {cycleMode.replace('_', ' ')} • Mood: {currentMood > 0 ? '😊' : currentMood < -20 ? '😔' : '😐'}
+            </Text>
+          )}
+        </View>
         <TouchableOpacity
           style={[styles.voiceToggle, isVoiceMode && styles.voiceToggleActive]}
           onPress={() => setIsVoiceMode(!isVoiceMode)}
@@ -1909,6 +2162,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1a1a',
     borderBottomWidth: 1,
     borderBottomColor: '#333',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  personalityInfo: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+    textAlign: 'center',
   },
   backButton: {
     padding: 10,
