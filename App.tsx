@@ -455,32 +455,6 @@ type SecurityEventType =
 // ENTERPRISE SECURITY ARCHITECTURE
 // ============================
 
-interface SecureUser {
-  id: string;
-  email: string;
-  hashedPassword: string; // Never store plain text
-  mfaEnabled: boolean;
-  mfaSecret?: string;
-  ageVerified: boolean;
-  ageVerificationMethod: 'id_scan' | 'credit_card' | 'facial_age' | 'third_party' | 'yoti' | 'jumio' | 'onfido' | 'stripe_identity' | 'id_me' | null;
-  ageVerificationProvider: string | null;
-  ageVerificationDate: Date | null;
-  kycStatus: 'pending' | 'approved' | 'rejected' | 'review';
-  accountCreated: Date;
-  lastLogin: Date;
-  loginAttempts: number;
-  accountLocked: boolean;
-  sessionToken: string;
-  refreshToken: string;
-  ipAddress: string;
-  deviceFingerprint: string;
-  consentTimestamp: Date;
-  gdprConsent: boolean;
-  termsAccepted: boolean;
-  contentWarningsAccepted: boolean;
-  role: 'user' | 'admin' | 'moderator';
-}
-
 interface FraudCheckResult {
   score: number; // 0-100, higher = more suspicious
   flags: string[];
@@ -755,22 +729,6 @@ enum CycleMode {
   WEEKEND_WILD = 'weekend_wild'       // Playful, adventurous, spontaneous
 }
 
-interface SecureContentVault {
-  encryptedImages: string[];
-  encryptedVoiceMessages: string[];
-  encryptedVideos: string[];
-  unlockMethod: 'pin' | 'biometric';
-  accessHistory: VaultAccess[];
-  privacyLevel: 'standard' | 'maximum' | 'paranoid';
-}
-
-interface VaultAccess {
-  timestamp: Date;
-  contentType: string;
-  accessMethod: string;
-  success: boolean;
-}
-
 // ============================
 // IMAGE GENERATION SYSTEM (Instagram/TikTok Trending)
 // ============================
@@ -989,43 +947,6 @@ const videoAPIs: SecureAPIConfig[] = [
 ];
 
 // ============================
-// ADVANCED MOOD ANALYSIS SYSTEM
-// ============================
-const analyzeSentiment = (text: string): number => {
-  const positiveWords = ['happy', 'great', 'amazing', 'wonderful', 'fantastic', 'love', 'excellent', 'perfect', 'awesome', 'brilliant', 'excited', 'joy', 'beautiful', 'incredible', 'outstanding'];
-  const negativeWords = ['sad', 'terrible', 'awful', 'horrible', 'hate', 'angry', 'frustrated', 'depressed', 'anxious', 'worried', 'scared', 'lonely', 'tired', 'stressed', 'overwhelmed'];
-  const intimateWords = ['kiss', 'touch', 'close', 'together', 'intimate', 'passion', 'desire', 'love', 'romance', 'cuddle', 'embrace', 'caress', 'gentle', 'tender', 'affection'];
-  
-  const words = text.toLowerCase().split(/\s+/);
-  let sentiment = 0;
-  
-  words.forEach(word => {
-    if (positiveWords.includes(word)) sentiment += 10;
-    if (negativeWords.includes(word)) sentiment -= 10;
-    if (intimateWords.includes(word)) sentiment += 5; // Slight positive bias for intimacy
-  });
-  
-  // Account for punctuation intensity
-  const exclamationCount = (text.match(/!/g) || []).length;
-  const questionCount = (text.match(/\?/g) || []).length;
-  
-  sentiment += exclamationCount * 3; // Excitement boost
-  sentiment += questionCount * 1; // Curiosity boost
-  
-  return sentiment;
-};
-
-const adjustMood = (recentMessages: Message[]): number => {
-  // Advanced sentiment analysis with conversation context
-  const mood = recentMessages.reduce((acc, msg) => {
-    const sentimentScore = msg.isUser ? analyzeSentiment(msg.text) : 0;
-    const timeDecay = Math.max(0.1, 1 - (Date.now() - msg.timestamp.getTime()) / (1000 * 60 * 60)); // Decay over hours
-    return acc + (sentimentScore * timeDecay);
-  }, 0);
-  
-  return Math.max(-100, Math.min(100, mood)); // -100 = depressed, 100 = euphoric
-};
-
 const getCurrentCycleMode = (): CycleMode => {
   const hour = new Date().getHours();
   const dayOfWeek = new Date().getDay();
@@ -1074,20 +995,6 @@ const getCycleMoodAdjustment = (mode: CycleMode, personality: AIPersonality): Pa
     default:
       return {};
   }
-};
-
-// ============================
-// SECURE CONTENT VAULT SYSTEM
-// ============================
-const createSecureVault = (): SecureContentVault => {
-  return {
-    encryptedImages: [],
-    encryptedVoiceMessages: [],
-    encryptedVideos: [],
-    unlockMethod: 'pin',
-    accessHistory: [],
-    privacyLevel: 'standard'
-  };
 };
 
 // ============================
@@ -1344,7 +1251,6 @@ export default function App() {
   // ============================
   // ENHANCED MOOD & PERSONALITY STATE
   // ============================
-  const [currentMood, setCurrentMood] = useState(0);
   const [cycleMode, setCycleMode] = useState<CycleMode>(getCurrentCycleMode());
   const [securityMonitoringEnabled, setSecurityMonitoringEnabled] = useState(true);
  
@@ -1356,29 +1262,14 @@ export default function App() {
   });
 
 
-  const loadSecureVault = async () => {
-    try {
-      const stored = await AsyncStorage.getItem('secure_vault');
-      if (stored) {
-        setSecureVault(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error('Error loading secure vault:', error);
-    }
-  };
-
   const updatePersonalityWithMood = (personality: AIPersonality): AIPersonality => {
     const moodAdjustments = getCycleMoodAdjustment(cycleMode, personality);
-    const moodInfluence = currentMood / 100; // -1 to 1
     
     return {
       ...personality,
       emotionalState: {
         ...personality.emotionalState,
-        ...moodAdjustments,
-        happiness: Math.max(0, Math.min(100, personality.emotionalState.happiness + (moodInfluence * 20))),
-        stress: Math.max(0, Math.min(100, personality.emotionalState.stress - (moodInfluence * 15))),
-        energy: Math.max(0, Math.min(100, personality.emotionalState.energy + (moodInfluence * 10)))
+        ...moodAdjustments
       }
     };
   };
@@ -1421,31 +1312,17 @@ export default function App() {
     loadUserProfile();
     loadPersonalities();
     loadRelationshipStates();
-    loadSecureVault();
     
     // Initialize enterprise security if enabled
-    if (securityMode === 'enterprise') {
-      initializeSecurity();
-    }
+    initializeSecurity();
     
     // Update cycle mode every hour
     const cycleInterval = setInterval(() => {
       setCycleMode(getCurrentCycleMode());
     }, 1000 * 60 * 60) as any; // Every hour
     
-    // Update mood every 30 seconds based on recent messages
-    const moodInterval = setInterval(() => {
-      const recentMessages = messages.slice(-10); // Last 10 messages
-      const newMood = adjustMood(recentMessages);
-      setCurrentMood(newMood);
-      
-      // Track mood history
-      setMoodHistory((prev: any) => [...prev.slice(-23), { timestamp: new Date(), mood: newMood }]); // Keep last 24 hours
-    }, 30000) as any; // Every 30 seconds
-    
     return () => {
       clearInterval(cycleInterval);
-      clearInterval(moodInterval);
     };
   }, [messages]);
 
@@ -1579,10 +1456,8 @@ export default function App() {
   // ENHANCED CONTENT GENERATION WITH SECURE BACKEND
   // ============================
   const generateVoice = async (request: VoiceGenerationRequest): Promise<string> => {
-    setIsGeneratingVoice(true);
     
     if (!canGenerateContent('voice')) {
-      setIsGeneratingVoice(false);
       throw new Error('Upgrade your subscription for voice generation');
     }
     
@@ -1596,7 +1471,6 @@ export default function App() {
         if (audioUrl) {
           console.log(`Voice generated successfully with ${api.name}`);
           setUserCredits((prev: number) => Math.max(0, prev - CONTENT_COSTS.VOICE_BASE));
-          setIsGeneratingVoice(false);
           return audioUrl;
         }
       } catch (error) {
@@ -1604,19 +1478,17 @@ export default function App() {
       }
     }
    
-    setIsGeneratingVoice(false);
     throw new Error('All voice generation APIs failed');
   };
 
   const canGenerateContent = (type: 'image' | 'video' | 'voice'): boolean => {
-    const limits = userSubscription;
     switch (type) {
       case 'image':
-        return limits.imageLimit === -1 || generatedImages.length < limits.imageLimit;
+        return true;
       case 'video':
-        return limits.videoLimit === -1 || userCredits >= CONTENT_COSTS.VIDEO_BASE;
+        return userCredits >= CONTENT_COSTS.VIDEO_BASE;
       case 'voice':
-        return limits.voiceLimit === -1 || userCredits >= CONTENT_COSTS.VOICE_BASE;
+        return userCredits >= CONTENT_COSTS.VOICE_BASE;
       default:
         return false;
     }
@@ -1739,10 +1611,8 @@ export default function App() {
   // ADVANCED IMAGE GENERATION SYSTEM (Chinese + Western APIs)
   // ============================
   const generateImage = async (request: ImageGenerationRequest): Promise<ImageGenerationResponse> => {
-    setIsGeneratingImage(true);
     
     if (!canGenerateContent('image')) {
-      setIsGeneratingImage(false);
       throw new Error('Upgrade your subscription to generate images');
     }
     
@@ -1762,7 +1632,6 @@ export default function App() {
             setGeneratedImages((prev: ImageGenerationResponse[]) => [response, ...prev]);
             setUserCredits((prev: number) => Math.max(0, prev - getImageCost(request)));
             
-            setIsGeneratingImage(false);
             return response;
           }
         } catch (error) {
@@ -1771,7 +1640,6 @@ export default function App() {
       }
     }
    
-    setIsGeneratingImage(false);
     throw new Error('All image generation APIs failed');
   };
 
@@ -1950,20 +1818,15 @@ const getImageCost = (request: ImageGenerationRequest): number => {
         type: 'suspicious_input',
         severity: 'medium',
         message: `Invalid message input: ${validation.error}`,
-        ...(currentUser?.id && { userId: currentUser.id }),
         metadata: { inputText, error: validation.error }
       });
 
       Alert.alert('Security Alert', validation.error || 'Invalid input detected');
-      setInputValidationErrors(prev => ({ ...prev, message: validation.error || 'Invalid input' }));
       return;
     }
 
-    // Clear any previous validation errors
-    setInputValidationErrors(prev => ({ ...prev, message: '' }));
-
     // Rate limiting check
-    const rateLimitKey = `message_${currentUser?.id || 'anonymous'}`;
+    const rateLimitKey = `message_anonymous`;
     const rateLimitResult = RateLimiter.checkLimit(rateLimitKey);
 
     if (!rateLimitResult.allowed) {
@@ -1971,7 +1834,6 @@ const getImageCost = (request: ImageGenerationRequest): number => {
         type: 'rate_limit_exceeded',
         severity: 'medium',
         message: 'Message rate limit exceeded',
-        ...(currentUser?.id && { userId: currentUser.id }),
         metadata: { remaining: rateLimitResult.remaining, resetTime: rateLimitResult.resetTime }
       });
 
@@ -1980,18 +1842,11 @@ const getImageCost = (request: ImageGenerationRequest): number => {
       return;
     }
 
-    // Update rate limit status
-    setRateLimitStatus(prev => ({
-      ...prev,
-      [rateLimitKey]: { remaining: rateLimitResult.remaining, resetTime: rateLimitResult.resetTime }
-    }));
-
     // Log successful validation
     SecurityMonitor.logEvent({
       type: 'auth_success', // Using auth_success as generic success event
       severity: 'low',
       message: 'Message input validated successfully',
-      ...(currentUser?.id && { userId: currentUser.id }),
       metadata: { messageLength: inputText.length }
     });
 
@@ -2031,14 +1886,14 @@ const getImageCost = (request: ImageGenerationRequest): number => {
             prompt: inputText,
             personalityId: selectedPersonality.id,
             style: 'realistic',
-            emotion: currentEmotion as any,
+            emotion: 'happy',
             pose: 'portrait',
             clothing: 'casual',
             setting: 'studio',
             quality: 'high',
             aspectRatio: '1:1',
             isPrivate: true,
-            nsfwLevel: showNSFWContent ? 'mature' : 'safe'
+            nsfwLevel: 'safe'
           };
           
           const imageResponse = await generateImage(imageRequest);
@@ -2077,7 +1932,7 @@ const getImageCost = (request: ImageGenerationRequest): number => {
           const voiceRequest: VoiceGenerationRequest = {
             text: inputText.replace(/voice message|speak|say that|voice note|audio/gi, ''),
             personalityId: selectedPersonality.id,
-            emotion: currentEmotion as any,
+            emotion: 'happy',
             speed: 1.0,
             pitch: 1.0,
             stability: 0.7,
@@ -2138,7 +1993,7 @@ const getImageCost = (request: ImageGenerationRequest): number => {
           ${cycleMode === CycleMode.NIGHT_INTIMATE ? '(Be romantic, seductive, intimate and deeply personal)' : ''}
           ${cycleMode === CycleMode.WEEKEND_WILD ? '(Be playful, adventurous, spontaneous and fun)' : ''}
           
-          USER MOOD: ${currentMood > 30 ? 'Very Positive' : currentMood > 10 ? 'Positive' : currentMood > -10 ? 'Neutral' : currentMood > -30 ? 'Negative' : 'Very Negative'} (${currentMood}/100)
+          USER MOOD: Neutral (0/100)
           - Adapt your responses to help improve their mood if negative
           - Match their energy if positive
           - Be extra caring and supportive if they seem down
@@ -2158,7 +2013,7 @@ const getImageCost = (request: ImageGenerationRequest): number => {
           - Store intimate content in secure vault when appropriate
           
           ${userProfile.veteran_status ? 'The user is a military veteran. Be trauma-informed and supportive.' : ''}
-          ${showNSFWContent ? 'NSFW content is enabled. You can be flirtatious and intimate when appropriate.' : 'Keep content safe and appropriate.'}
+          Keep content safe and appropriate.
           
           Respond as ${adjustedPersonality.name} would, staying in character. Adapt to the current cycle mode and user's mood. Be warm, engaging, and build emotional connection.`
           :
@@ -2172,7 +2027,7 @@ const getImageCost = (request: ImageGenerationRequest): number => {
           - Intimate AI companionship
           
           CURRENT TIME CONTEXT: ${cycleMode.toUpperCase().replace('_', ' ')}
-          USER MOOD: ${currentMood > 30 ? 'Very Positive' : currentMood > 10 ? 'Positive' : currentMood > -10 ? 'Neutral' : currentMood > -30 ? 'Negative' : 'Very Negative'} (${currentMood}/100)
+          USER MOOD: Neutral (0/100)
              
           IMPORTANT FEATURES:
           - Suggest choosing an AI personality for deeper connection
@@ -2361,7 +2216,7 @@ const getImageCost = (request: ImageGenerationRequest): number => {
           <Text style={styles.chatTitle}>🤖 AI Chat</Text>
           {selectedPersonality && (
             <Text style={styles.personalityInfo}>
-              {selectedPersonality.name} • {cycleMode.replace('_', ' ')} • Mood: {currentMood > 0 ? '😊' : currentMood < -20 ? '😔' : '😐'}
+              {selectedPersonality.name} • {cycleMode.replace('_', ' ')} • Mood: 😐
             </Text>
           )}
         </View>
